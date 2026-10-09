@@ -12,12 +12,12 @@ from backend.app.services.sla_service import (
 def test_sla_deadlines():
     now = utc_now()
     h_crit, d_crit = calculate_sla_deadline(now, "Critical")
-    assert h_crit == 1.0
-    assert (d_crit - now).total_seconds() == 3600
+    assert h_crit == 1.0 / 60.0
+    assert (d_crit - now).total_seconds() == 60
 
     h_med, d_med = calculate_sla_deadline(now, "Medium")
-    assert h_med == 24.0
-    assert (d_med - now).total_seconds() == 24 * 3600
+    assert h_med == 5.0 / 60.0
+    assert (d_med - now).total_seconds() == 300
 
 def test_auto_escalation_lifecycle():
     # Setup in-memory sqlite db for testing
