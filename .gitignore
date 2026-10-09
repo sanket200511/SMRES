@@ -24,6 +24,8 @@ wheels/
 *.db
 *.sqlite3
 pgdata/
+.env
+backend/.env
 
 # Node / Frontend
 node_modules/

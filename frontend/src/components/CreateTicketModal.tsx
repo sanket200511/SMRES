@@ -1,15 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import {
-  X,
-  AlertTriangle,
-  Flame,
-  Shield,
-  HelpCircle,
-  Copy,
-  CheckCircle2,
-  Sparkles,
-} from 'lucide-react';
-import { User, PriorityScoreBreakdown, DuplicateCheckResult } from '../types';
+import { X, Send } from 'lucide-react';
+import { User, DuplicateCheckResult } from '../types';
 import { api } from '../api/client';
 import { DuplicateWarningAlert } from './DuplicateWarningAlert';
 
@@ -37,51 +28,14 @@ export const CreateTicketModal: React.FC<Props> = ({
   const [room, setRoom] = useState('');
   const [equipmentId, setEquipmentId] = useState('');
 
-  // Priority factors (0 to 5)
-  const [safetyScore, setSafetyScore] = useState(1);
-  const [opsScore, setOpsScore] = useState(1);
-  const [peopleScore, setPeopleScore] = useState(1);
-  const [timeScore, setTimeScore] = useState(1);
-
-  // Live preview & duplicate check states
-  const [preview, setPreview] = useState<PriorityScoreBreakdown | null>(null);
+  // Duplicate check and submission state
   const [dupResult, setDupResult] = useState<DuplicateCheckResult | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Trigger live priority preview calculation whenever scores or text change
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const timer = setTimeout(async () => {
-      try {
-        const payload = {
-          title: title || 'Maintenance Request',
-          description: description || 'Issue description',
-          category,
-          location: location || building,
-          building,
-          floor,
-          room,
-          equipment_id: equipmentId,
-          safety_score: safetyScore,
-          operational_impact_score: opsScore,
-          affected_people_score: peopleScore,
-          time_sensitivity_score: timeScore,
-        };
-        const res = await api.previewPriority(payload);
-        setPreview(res);
-      } catch (err) {
-        console.error('Failed to preview priority', err);
-      }
-    }, 200);
-
-    return () => clearTimeout(timer);
-  }, [title, description, category, safetyScore, opsScore, peopleScore, timeScore, isOpen]);
-
   // Check duplicate when user enters meaningful title or location
   useEffect(() => {
-    if (!isOpen || title.trim().length < 6) {
+    if (!isOpen || title.trim().length < 5) {
       setDupResult(null);
       return;
     }
@@ -89,18 +43,18 @@ export const CreateTicketModal: React.FC<Props> = ({
     const timer = setTimeout(async () => {
       try {
         const payload = {
-          title,
-          description: description || title,
+          title: title.trim(),
+          description: description.trim() || title.trim(),
           category,
-          location: location || building,
+          location: location.trim() || building,
           building,
-          floor,
-          room,
-          equipment_id: equipmentId,
-          safety_score: safetyScore,
-          operational_impact_score: opsScore,
-          affected_people_score: peopleScore,
-          time_sensitivity_score: timeScore,
+          floor: floor.trim() || undefined,
+          room: room.trim() || undefined,
+          equipment_id: equipmentId.trim() || undefined,
+          safety_score: 1,
+          operational_impact_score: 1,
+          affected_people_score: 1,
+          time_sensitivity_score: 1,
         };
         const res = await api.checkDuplicate(payload);
         if (res.is_potential_duplicate) {
@@ -114,34 +68,67 @@ export const CreateTicketModal: React.FC<Props> = ({
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [title, category, location, building, equipmentId, isOpen]);
+  }, [title, description, category, location, building, isOpen]);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !description.trim() || !location.trim()) {
-      setErrorMessage('Please fill in title, description, and specific location.');
+    const cleanTitle = title.trim();
+    const cleanDesc = description.trim();
+    const cleanLoc = location.trim() || building;
+
+    if (!cleanTitle) {
+      setErrorMessage('Please provide an issue title.');
+      return;
+    }
+    if (!cleanDesc) {
+      setErrorMessage('Please provide a detailed description of the maintenance issue.');
       return;
     }
 
     setIsSubmitting(true);
     setErrorMessage('');
+
+    // Intelligent auto-scoring based on safety hazard keywords and category
+    let autoSafety = 1;
+    let autoOps = 2;
+    let autoPeople = 2;
+    let autoTime = 2;
+
+    const lowerText = `${cleanTitle} ${cleanDesc}`.toLowerCase();
+    if (/gas leak|odor of gas|fire|smoke|sparking|live wire|collapse|flooding|chemical spill|explosion/.test(lowerText)) {
+      autoSafety = 5;
+      autoOps = 4;
+      autoPeople = 4;
+      autoTime = 5;
+    } else if (category === 'Fire & Safety') {
+      autoSafety = 4;
+      autoOps = 3;
+      autoPeople = 3;
+      autoTime = 4;
+    } else if (category === 'Electrical' || category === 'HVAC') {
+      autoSafety = 2;
+      autoOps = 3;
+      autoPeople = 2;
+      autoTime = 3;
+    }
+
     try {
       await api.createTicket(
         {
-          title,
-          description,
+          title: cleanTitle,
+          description: cleanDesc,
           category,
-          location,
+          location: cleanLoc,
           building,
-          floor,
-          room,
-          equipment_id: equipmentId || undefined,
-          safety_score: safetyScore,
-          operational_impact_score: opsScore,
-          affected_people_score: peopleScore,
-          time_sensitivity_score: timeScore,
+          floor: floor.trim() || undefined,
+          room: room.trim() || undefined,
+          equipment_id: equipmentId.trim() || undefined,
+          safety_score: autoSafety,
+          operational_impact_score: autoOps,
+          affected_people_score: autoPeople,
+          time_sensitivity_score: autoTime,
           submitted_by_id: currentUser.id,
           submitted_by_name: currentUser.name,
         },
@@ -154,14 +141,10 @@ export const CreateTicketModal: React.FC<Props> = ({
       setEquipmentId('');
       setFloor('');
       setRoom('');
-      setSafetyScore(1);
-      setOpsScore(1);
-      setPeopleScore(1);
-      setTimeScore(1);
       onTicketCreated();
       onClose();
     } catch (err: any) {
-      setErrorMessage(err.message || 'Failed to submit ticket');
+      setErrorMessage(err.message || 'Failed to submit maintenance request');
     } finally {
       setIsSubmitting(false);
     }
@@ -180,7 +163,7 @@ export const CreateTicketModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/70 backdrop-blur-sm overflow-hidden">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Fixed Header */}
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
           <div>
@@ -198,9 +181,9 @@ export const CreateTicketModal: React.FC<Props> = ({
           </button>
         </div>
 
-        <form id="create-ticket-form" onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto flex-1">
+        <form id="create-ticket-form" onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
           {errorMessage && (
-            <div className="p-3 text-xs bg-rose-50 border border-rose-200 text-rose-800 rounded-xl">
+            <div className="p-3 text-xs bg-rose-50 border border-rose-200 text-rose-800 rounded-xl font-medium">
               {errorMessage}
             </div>
           )}
@@ -237,7 +220,7 @@ export const CreateTicketModal: React.FC<Props> = ({
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white cursor-pointer"
               >
                 {categories.map((c) => (
                   <option key={c} value={c}>
@@ -253,11 +236,11 @@ export const CreateTicketModal: React.FC<Props> = ({
             <label className="text-xs font-semibold text-slate-700">Detailed Description *</label>
             <textarea
               required
-              rows={3}
+              rows={4}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Describe symptoms, safety hazards, equipment tags, or urgency factors..."
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none leading-relaxed"
             />
           </div>
 
@@ -268,7 +251,7 @@ export const CreateTicketModal: React.FC<Props> = ({
               <select
                 value={building}
                 onChange={(e) => setBuilding(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white cursor-pointer"
               >
                 {buildings.map((b) => (
                   <option key={b} value={b}>
@@ -312,120 +295,6 @@ export const CreateTicketModal: React.FC<Props> = ({
               />
             </div>
           </div>
-
-          {/* Smart Priority Engine Factor Sliders */}
-          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                <Sparkles className="w-4 h-4 text-blue-600" />
-                <span>Smart Priority Engine Assessment (Explainable 0–5 Factors)</span>
-              </div>
-              <span className="text-[11px] text-slate-500">
-                Formula: 8×Safety + 5×Ops + 4×People + 3×Time
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-              {/* Safety */}
-              <div className="space-y-1.5 bg-white p-3 rounded-lg border border-slate-200 shadow-2xs">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="font-semibold text-slate-700">Safety Hazard</span>
-                  <span className="font-mono font-bold text-rose-600">{safetyScore} / 5</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="5"
-                  value={safetyScore}
-                  onChange={(e) => setSafetyScore(parseInt(e.target.value))}
-                  className="w-full accent-rose-600 cursor-pointer"
-                />
-                <p className="text-[10px] text-slate-400">Weight: 8x (0=None, 5=Severe/Immediate)</p>
-              </div>
-
-              {/* Operational Impact */}
-              <div className="space-y-1.5 bg-white p-3 rounded-lg border border-slate-200 shadow-2xs">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="font-semibold text-slate-700">Operational Impact</span>
-                  <span className="font-mono font-bold text-amber-600">{opsScore} / 5</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="5"
-                  value={opsScore}
-                  onChange={(e) => setOpsScore(parseInt(e.target.value))}
-                  className="w-full accent-amber-600 cursor-pointer"
-                />
-                <p className="text-[10px] text-slate-400">Weight: 5x (0=Minor, 5=Halts Operations)</p>
-              </div>
-
-              {/* Affected People */}
-              <div className="space-y-1.5 bg-white p-3 rounded-lg border border-slate-200 shadow-2xs">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="font-semibold text-slate-700">Affected People</span>
-                  <span className="font-mono font-bold text-blue-600">{peopleScore} / 5</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="5"
-                  value={peopleScore}
-                  onChange={(e) => setPeopleScore(parseInt(e.target.value))}
-                  className="w-full accent-blue-600 cursor-pointer"
-                />
-                <p className="text-[10px] text-slate-400">Weight: 4x (0=Isolated, 5=Whole Floor/Bldg)</p>
-              </div>
-
-              {/* Time Sensitivity */}
-              <div className="space-y-1.5 bg-white p-3 rounded-lg border border-slate-200 shadow-2xs">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="font-semibold text-slate-700">Time Sensitivity</span>
-                  <span className="font-mono font-bold text-indigo-600">{timeScore} / 5</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="5"
-                  value={timeScore}
-                  onChange={(e) => setTimeScore(parseInt(e.target.value))}
-                  className="w-full accent-indigo-600 cursor-pointer"
-                />
-                <p className="text-[10px] text-slate-400">Weight: 3x (0=Flexible, 5=Immediate)</p>
-              </div>
-            </div>
-
-            {/* Live Calculation Preview Banner */}
-            {preview && (
-              <div
-                className={`p-3 rounded-xl border flex items-center justify-between text-xs ${
-                  preview.is_safety_emergency
-                    ? 'bg-rose-100 border-rose-300 text-rose-900'
-                    : preview.recommended_priority === 'Critical'
-                    ? 'bg-rose-50 border-rose-200 text-rose-800'
-                    : preview.recommended_priority === 'High'
-                    ? 'bg-amber-50 border-amber-200 text-amber-800'
-                    : 'bg-blue-50 border-blue-200 text-blue-800'
-                }`}
-              >
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold">Calculated Priority:</span>
-                    <span className="font-extrabold uppercase px-2 py-0.5 rounded-full bg-white/70 shadow-2xs">
-                      {preview.recommended_priority}
-                    </span>
-                    <span className="font-mono font-bold">({preview.total_score} / 100 pts)</span>
-                    {preview.is_safety_emergency && (
-                      <span className="flex items-center gap-1 font-bold text-rose-700 bg-rose-200/80 px-2 py-0.5 rounded-full">
-                        <Flame className="w-3.5 h-3.5 animate-bounce" /> Emergency Condition Detected
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] opacity-85">{preview.explanation}</p>
-                </div>
-              </div>
-            )}
-          </div>
         </form>
 
         {/* Fixed Footer Actions */}
@@ -443,7 +312,17 @@ export const CreateTicketModal: React.FC<Props> = ({
             disabled={isSubmitting}
             className="px-5 py-2 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
           >
-            {isSubmitting ? 'Submitting...' : 'Submit Maintenance Request'}
+            {isSubmitting ? (
+              <>
+                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>Submitting...</span>
+              </>
+            ) : (
+              <>
+                <Send className="w-3.5 h-3.5" />
+                <span>Submit Maintenance Request</span>
+              </>
+            )}
           </button>
         </div>
       </div>

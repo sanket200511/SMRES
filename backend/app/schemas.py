@@ -56,10 +56,10 @@ class TicketActivityResponse(BaseModel):
 
 
 class TicketCreate(BaseModel):
-    title: str = Field(..., min_length=3, max_length=200)
-    description: str = Field(..., min_length=5)
+    title: str = Field(..., min_length=2, max_length=200)
+    description: str = Field(..., min_length=1)
     category: str = Field(..., description="Electrical, Plumbing, HVAC, Structural, Fire & Safety, General")
-    location: str = Field(..., min_length=2, max_length=200)
+    location: str = Field(..., min_length=1, max_length=200)
     building: str = Field(..., min_length=1, max_length=100)
     floor: Optional[str] = None
     room: Optional[str] = None

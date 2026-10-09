@@ -47,6 +47,19 @@ function getHeaders(currentUser?: User) {
   return headers;
 }
 
+function formatErrorMessage(err: any, fallback: string): string {
+  if (!err) return fallback;
+  if (typeof err.detail === 'string') return err.detail;
+  if (Array.isArray(err.detail)) {
+    return err.detail.map((d: any) => d.msg || d.message || JSON.stringify(d)).join('. ');
+  }
+  if (err.detail && typeof err.detail === 'object') {
+    return err.detail.msg || err.detail.message || JSON.stringify(err.detail);
+  }
+  if (err.message && typeof err.message === 'string') return err.message;
+  return fallback;
+}
+
 export const api = {
   async register(payload: {
     email: string;
@@ -184,7 +197,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || 'Failed to submit maintenance request');
+      throw new Error(formatErrorMessage(err, 'Failed to submit maintenance request'));
     }
     return res.json();
   },
