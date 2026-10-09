@@ -17,10 +17,12 @@ function getHeaders(currentUser?: User) {
   if (currentUser) {
     headers['x-user-role'] = currentUser.role;
     headers['x-user-id'] = currentUser.id;
+    headers['X-Demo-User-ID'] = currentUser.id;
     headers['x-user-name'] = currentUser.name;
   } else {
     headers['x-user-role'] = 'admin';
     headers['x-user-id'] = 'admin-1';
+    headers['X-Demo-User-ID'] = 'admin-1';
     headers['x-user-name'] = 'Marcus Vance';
   }
   return headers;

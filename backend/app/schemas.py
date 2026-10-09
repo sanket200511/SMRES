@@ -51,6 +51,7 @@ class TicketCreate(BaseModel):
     safety_score: int = Field(default=1, ge=0, le=5)
     operational_impact_score: int = Field(default=1, ge=0, le=5)
     affected_people_score: int = Field(default=1, ge=0, le=5)
+    affected_people_count: Optional[int] = Field(default=None, ge=0, description="Raw occupant count, mapped to 0-5 score")
     time_sensitivity_score: int = Field(default=1, ge=0, le=5)
 
 
