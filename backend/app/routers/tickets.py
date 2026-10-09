@@ -30,7 +30,19 @@ def resolve_caller_identity(
     x_user_id: Optional[str] = None,
     x_user_role: Optional[str] = None,
     x_user_name: Optional[str] = None,
+    authorization: Optional[str] = None,
 ):
+    # 1. Check JWT token if provided
+    if isinstance(authorization, str) and authorization.startswith("Bearer "):
+        token = authorization.split("Bearer ", 1)[1].strip()
+        from ..auth import decode_access_token
+        payload = decode_access_token(token)
+        if payload and "sub" in payload:
+            jwt_user = db.query(User).filter(User.id == payload["sub"]).first()
+            if jwt_user:
+                return jwt_user.id, jwt_user.role, jwt_user.name
+
+    # 2. Check X-Demo-User-ID or x-user-id
     valid_demo_id = x_demo_user_id if isinstance(x_demo_user_id, str) and x_demo_user_id.strip() else None
     valid_user_id = x_user_id if isinstance(x_user_id, str) and x_user_id.strip() else None
     valid_role = x_user_role if isinstance(x_user_role, str) and x_user_role.strip() else None
@@ -41,6 +53,7 @@ def resolve_caller_identity(
     if user:
         return user.id, user.role, user.name
     return uid, valid_role or "admin", valid_name or "Marcus Vance"
+
 
 def format_ticket_response(ticket: MaintenanceRequest) -> TicketResponse:
     is_overdue, mins_left = evaluate_ticket_sla_status(ticket)

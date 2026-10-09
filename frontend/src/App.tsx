@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, Technician, Ticket, DashboardStats } from './types';
-import { api } from './api/client';
+import { api, getStoredToken, clearStoredToken } from './api/client';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { StatsOverview } from './components/StatsOverview';
@@ -10,6 +10,7 @@ import { CreateTicketModal } from './components/CreateTicketModal';
 import { RecurringIssuesView } from './components/RecurringIssuesView';
 import { TechniciansView } from './components/TechniciansView';
 import { PriorityGuideView } from './components/PriorityGuideView';
+import { AuthModal } from './components/AuthModal';
 
 export function App() {
   const [currentUser, setCurrentUser] = useState<User>({
@@ -24,6 +25,11 @@ export function App() {
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+
+  // Auth State
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
+  const [isLoggedInWithJwt, setIsLoggedInWithJwt] = useState<boolean>(false);
 
   // Navigation
   const [currentView, setCurrentView] = useState<'tickets' | 'recurring' | 'technicians' | 'guide'>('tickets');
@@ -53,7 +59,7 @@ export function App() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // Initial load of users & technicians
+  // Initial load of users, technicians, and restore JWT session if available
   useEffect(() => {
     const init = async () => {
       try {
@@ -63,7 +69,22 @@ export function App() {
         ]);
         setAllUsers(usersData);
         setTechnicians(techsData);
-        // Default to Marcus Vance
+
+        // Check if existing JWT token is stored
+        const token = getStoredToken();
+        if (token) {
+          try {
+            const me = await api.getMe();
+            setCurrentUser(me);
+            setIsLoggedInWithJwt(true);
+            return;
+          } catch (err) {
+            clearStoredToken();
+            setIsLoggedInWithJwt(false);
+          }
+        }
+
+        // Default to Marcus Vance if not logged in
         const marcus = usersData.find((u) => u.id === 'admin-1');
         if (marcus) setCurrentUser(marcus);
       } catch (err) {
@@ -190,6 +211,24 @@ export function App() {
     setMetricCardFilter(null);
   };
 
+  const handleAuthSuccess = (authUser: User) => {
+    setCurrentUser(authUser);
+    setIsLoggedInWithJwt(true);
+    setAllUsers((prev) => {
+      if (prev.some((u) => u.id === authUser.id)) return prev;
+      return [authUser, ...prev];
+    });
+    showToast(`Signed in as ${authUser.name} (${authUser.role.toUpperCase()})`);
+  };
+
+  const handleLogout = () => {
+    clearStoredToken();
+    setIsLoggedInWithJwt(false);
+    const marcus = allUsers.find((u) => u.id === 'admin-1');
+    if (marcus) setCurrentUser(marcus);
+    showToast('Signed out of JWT session.');
+  };
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-50 font-sans">
       {/* Toast notification */}
@@ -223,6 +262,12 @@ export function App() {
           isCheckingSla={isCheckingSla}
           onRefreshData={handleRefresh}
           isRefreshing={isRefreshing}
+          isLoggedInWithJwt={isLoggedInWithJwt}
+          onOpenAuthModal={(mode) => {
+            setAuthModalMode(mode);
+            setIsAuthModalOpen(true);
+          }}
+          onLogout={handleLogout}
         />
 
         {/* Content Body */}
@@ -270,6 +315,14 @@ export function App() {
           </div>
         </main>
       </div>
+
+      {/* Auth Modal (Register & Login) */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onAuthSuccess={handleAuthSuccess}
+        defaultMode={authModalMode}
+      />
 
       {/* Create Ticket Modal */}
       <CreateTicketModal
