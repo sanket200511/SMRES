@@ -20,6 +20,7 @@ export const Header: React.FC<Props> = ({
   isRefreshing,
 }) => {
   const isAdmin = currentUser.role === 'admin' || currentUser.role === 'facility_manager';
+  const isTech = currentUser.role === 'technician';
 
   return (
     <header className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 shadow-2xs">
@@ -31,10 +32,16 @@ export const Header: React.FC<Props> = ({
             className={`text-xs px-2 py-0.5 rounded-full font-medium ${
               isAdmin
                 ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                : isTech
+                ? 'bg-amber-50 text-amber-700 border border-amber-200'
                 : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
             }`}
           >
-            {isAdmin ? 'Facility Manager Mode' : 'Employee Self-Service'}
+            {isAdmin
+              ? 'Facility Manager Mode'
+              : isTech
+              ? `Technician Workspace (${currentUser.name})`
+              : 'Employee Self-Service'}
           </span>
         </h2>
       </div>

@@ -64,6 +64,7 @@ export const TicketDetailModal: React.FC<Props> = ({
   if (!isOpen || !ticket) return null;
 
   const isAdmin = currentUser.role === 'admin' || currentUser.role === 'facility_manager';
+  const canUpdateStatus = isAdmin || currentUser.role === 'technician';
 
   // Format time remaining / overdue
   const renderSlaStatus = () => {
@@ -590,7 +591,7 @@ export const TicketDetailModal: React.FC<Props> = ({
           </div>
 
           <div className="flex items-center gap-3">
-            {isAdmin && ticket.status === 'Pending' && (
+            {canUpdateStatus && ticket.status === 'Pending' && (
               <button
                 type="button"
                 disabled={isUpdatingStatus}
@@ -601,7 +602,7 @@ export const TicketDetailModal: React.FC<Props> = ({
               </button>
             )}
 
-            {isAdmin && ticket.status !== 'Resolved' && (
+            {canUpdateStatus && ticket.status !== 'Resolved' && (
               <>
                 {showResolveDialog ? (
                   <div className="flex items-center gap-2">
