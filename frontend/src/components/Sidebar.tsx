@@ -31,6 +31,23 @@ export const Sidebar: React.FC<Props> = ({
   emergencyCount = 0,
 }) => {
   const isAdmin = currentUser.role === 'admin' || currentUser.role === 'facility_manager';
+  const isTech = currentUser.role === 'technician';
+
+  const getTicketsLabel = () => {
+    if (isAdmin) return 'All Requests';
+    if (isTech) return 'Assigned Tasks';
+    return 'My Requests';
+  };
+
+  const getRoleBadgeStyle = () => {
+    if (isAdmin) return 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30';
+    if (isTech) return 'bg-amber-500/20 text-amber-400 border border-amber-500/30';
+    return 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+  };
+
+  const employees = allUsers.filter((u) => u.role === 'employee');
+  const admins = allUsers.filter((u) => u.role === 'admin' || u.role === 'facility_manager');
+  const technicians = allUsers.filter((u) => u.role === 'technician');
 
   return (
     <aside className="w-64 bg-slate-900 text-slate-200 flex flex-col shrink-0 border-r border-slate-800 select-none">
@@ -65,7 +82,7 @@ export const Sidebar: React.FC<Props> = ({
         >
           <div className="flex items-center gap-2.5">
             <LayoutDashboard className="w-4 h-4" />
-            <span>{isAdmin ? 'All Requests' : 'My Requests'}</span>
+            <span>{getTicketsLabel()}</span>
           </div>
           <div className="flex items-center gap-1">
             {emergencyCount > 0 && (
@@ -134,9 +151,7 @@ export const Sidebar: React.FC<Props> = ({
             <UserCheck className="w-3.5 h-3.5 text-blue-400" /> Demo Role Switcher
           </span>
           <span
-            className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
-              isAdmin ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-            }`}
+            className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${getRoleBadgeStyle()}`}
           >
             {currentUser.role}
           </span>
@@ -150,11 +165,35 @@ export const Sidebar: React.FC<Props> = ({
           }}
           className="w-full bg-slate-800 border border-slate-700 text-white text-xs rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer"
         >
-          {allUsers.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.name} ({u.role.toUpperCase()} - {u.department})
-            </option>
-          ))}
+          {admins.length > 0 && (
+            <optgroup label="🏢 Facility Managers / Admins">
+              {admins.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name} (Admin - {u.department})
+                </option>
+              ))}
+            </optgroup>
+          )}
+
+          {employees.length > 0 && (
+            <optgroup label="👤 Employees (Submitters)">
+              {employees.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name} (Employee - {u.department})
+                </option>
+              ))}
+            </optgroup>
+          )}
+
+          {technicians.length > 0 && (
+            <optgroup label="🔧 Technicians (Field Dispatch)">
+              {technicians.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name} (Technician - {u.department})
+                </option>
+              ))}
+            </optgroup>
+          )}
         </select>
 
         <div className="mt-2.5 flex items-center gap-2 text-[11px] text-slate-400">

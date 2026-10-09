@@ -102,3 +102,43 @@ def test_recurring_issues_endpoint():
     hvac_pattern = next((p for p in data if p["category"] == "HVAC" and p["building"] == "Building B"), None)
     assert hvac_pattern is not None
     assert hvac_pattern["incident_count"] >= 2
+
+def test_x_demo_user_id_header_resolution_and_restrictions():
+    # Employee using X-Demo-User-ID should be blocked from status transition to Resolved
+    res = client.patch(
+        "/api/requests/REQ-1002/status",
+        json={"status": "Resolved", "resolution_notes": "Employee attempting unauthorized resolution"},
+        headers={"X-Demo-User-ID": "emp-1"}
+    )
+    assert res.status_code == 403
+    assert "not authorized" in res.json()["detail"].lower()
+
+def test_requests_alias_history_and_assign():
+    # Test GET /api/requests/{id}/history
+    res = client.get("/api/requests/REQ-1002/history")
+    assert res.status_code == 200
+    history = res.json()
+    assert isinstance(history, list)
+    assert len(history) >= 1
+    assert any(h["action"] == "CREATED" for h in history)
+
+    # Test PATCH /api/requests/{id}/assign with admin X-Demo-User-ID
+    res_assign = client.patch(
+        "/api/requests/REQ-1002/assign",
+        json={"technician_id": "tech-3"},
+        headers={"X-Demo-User-ID": "admin-1"}
+    )
+    assert res_assign.status_code == 200
+    assert res_assign.json()["assigned_technician_id"] == "tech-3"
+
+def test_dashboard_stats_endpoint():
+    res = client.get("/api/dashboard/stats")
+    assert res.status_code == 200
+    data = res.json()
+    assert "total_tickets" in data
+    assert "critical_count" in data
+    assert "pending_count" in data
+    assert "in_progress_count" in data
+    assert "resolved_count" in data
+    assert data["total_tickets"] >= 6
+

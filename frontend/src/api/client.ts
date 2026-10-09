@@ -8,7 +8,9 @@ import {
   DuplicateCheckResult,
 } from '../types';
 
-const API_BASE = '/api';
+const API_BASE = import.meta.env.VITE_API_BASE_URL
+  ? `${import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '')}/api`
+  : '/api';
 
 function getHeaders(currentUser?: User) {
   const headers: Record<string, string> = {
@@ -17,11 +19,15 @@ function getHeaders(currentUser?: User) {
   if (currentUser) {
     headers['x-user-role'] = currentUser.role;
     headers['x-user-id'] = currentUser.id;
+    headers['X-Demo-User-ID'] = currentUser.id;
     headers['x-user-name'] = currentUser.name;
+    headers['X-Demo-User-ID'] = currentUser.id;
   } else {
     headers['x-user-role'] = 'admin';
     headers['x-user-id'] = 'admin-1';
+    headers['X-Demo-User-ID'] = 'admin-1';
     headers['x-user-name'] = 'Marcus Vance';
+    headers['X-Demo-User-ID'] = 'admin-1';
   }
   return headers;
 }

@@ -8,9 +8,10 @@ from ..models import MaintenanceRequest, utc_now
 from ..schemas import DashboardStatsResponse
 from ..services.sla_service import check_and_escalate_overdue_tickets, evaluate_ticket_sla_status
 
-router = APIRouter(prefix="/api/stats", tags=["Dashboard Statistics"])
+router = APIRouter(tags=["Dashboard Statistics"])
 
-@router.get("", response_model=DashboardStatsResponse)
+@router.get("/api/stats", response_model=DashboardStatsResponse)
+@router.get("/api/dashboard/stats", response_model=DashboardStatsResponse)
 def get_dashboard_stats(db: Session = Depends(get_db)):
     tickets = db.query(MaintenanceRequest).all()
 
@@ -91,7 +92,8 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
         priority_breakdown=pri_counts,
     )
 
-@router.post("/sla-check-now")
+@router.post("/api/stats/sla-check-now")
+@router.post("/api/sla/check-now")
 def run_sla_check_now(db: Session = Depends(get_db)):
     """Triggers immediate SLA monitor check and escalates overdue tickets."""
     escalated = check_and_escalate_overdue_tickets(db)
