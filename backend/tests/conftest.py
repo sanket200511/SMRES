@@ -6,9 +6,19 @@ from backend.app.database import Base, get_db
 from backend.app.seed_data import seed_database
 from backend.app.main import app
 
-# Shared PostgreSQL test database engine
-PG_TEST_URL = os.getenv("TEST_DATABASE_URL", "postgresql+psycopg://postgres@localhost:5433/smres_test")
-test_engine = create_engine(PG_TEST_URL)
+# Support PostgreSQL when configured/available, otherwise fallback to SQLite
+TEST_DB_URL = os.getenv("TEST_DATABASE_URL")
+if not TEST_DB_URL:
+    try:
+        import psycopg
+        TEST_DB_URL = "postgresql+psycopg://postgres@localhost:5433/smres_test"
+    except ImportError:
+        TEST_DB_URL = "sqlite:///smres_test.db"
+
+test_engine = create_engine(
+    TEST_DB_URL,
+    connect_args={"check_same_thread": False} if "sqlite" in TEST_DB_URL else {}
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
 def override_get_db():

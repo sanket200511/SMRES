@@ -2,10 +2,8 @@ import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-
-# PostgreSQL is the primary database (running on port 5433 with trust authentication)
-DEFAULT_POSTGRES_URL = "postgresql+psycopg://postgres@localhost:5433/smres"
-DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_POSTGRES_URL)
+DB_PATH = BASE_DIR / "smres.db"
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DB_PATH}")
 
 # Priority engine weights
 WEIGHT_SAFETY = 8
@@ -29,6 +27,9 @@ SLA_HOURS_DEMO = {
     "Medium": 5.0 / 60.0,     # 5 minutes
     "Low": 10.0 / 60.0,       # 10 minutes
 }
+
+# Alias for backward compatibility with older tests and modules
+SLA_HOURS = SLA_HOURS_DEMO
 
 SLA_HOURS_PROD = {
     "Critical": 1.0,   # 1 hour
