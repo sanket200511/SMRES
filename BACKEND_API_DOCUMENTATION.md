@@ -1,94 +1,69 @@
 # Backend API Documentation
 **Smart Maintenance Request & Escalation System (SMRES)**
 
-This document explains every Backend API endpoint in the system. It breaks down what each endpoint does, how it works, and how the "Intelligence Engine" is implemented behind the scenes in simple, easy-to-understand language.
+This document lists all **15 backend APIs** powering the system. It is written in simple, easy-to-understand language to explain exactly what each endpoint does and how it helps the system run intelligently.
 
 ---
 
-## 1. Ticket Submission & Intelligence APIs
+### 🧠 1. Intelligence & Automation APIs
+These APIs power the automated, intelligent decision-making features before and after a ticket is created.
 
-These APIs are used when an employee creates a maintenance request. They trigger the intelligence algorithms to automatically analyze the ticket.
+1. **`POST /api/tickets/preview-priority`**
+   * **Use:** Called by the frontend while the employee is typing a request. It runs the math formula and checks for safety hazards to show a "live preview" of the priority (e.g., "Critical") before they even click submit.
 
-### `POST /api/tickets/preview-priority`
-* **What it does:** Allows the frontend to show a "Live Preview" of the priority score before the user even clicks submit.
-* **How it works:** It takes the 0-5 scores provided by the user (Safety, Operational Impact, People Affected, Time Sensitivity) and runs them through the **Smart Priority Engine**. It also scans the description for emergency keywords (like "gas leak").
-* **Implementation:** Returns a breakdown of the math `(8*Safety + 5*Ops + 4*People + 3*Time)`, the final Recommended Priority (Critical, High, Medium, Low), and any safety warnings.
+2. **`POST /api/tickets/check-duplicate`**
+   * **Use:** Called by the frontend before submission to check if the issue has already been reported. It compares the text, location, and category to warn the user (e.g., *"This looks 85% similar to an existing broken AC ticket"*).
 
-### `POST /api/tickets/check-duplicate`
-* **What it does:** Checks if someone else has already reported the exact same issue.
-* **How it works:** It grabs all currently active tickets from the database and runs them through the **Duplicate Detector**. 
-* **Implementation:** Uses text similarity (Jaccard scoring) combined with checking if the tickets share the same Category, Building, or Equipment ID. Returns a confidence percentage (e.g., "85% match").
-
-### `POST /api/tickets` (Main Create Endpoint)
-* **What it does:** The main endpoint to submit a new maintenance request.
-* **How it works:** This is the master workflow. When a ticket is submitted, it automatically does four intelligent things in the background:
-  1. Runs the **Priority Engine** to assign a priority and catch emergencies.
-  2. Runs the **Duplicate Detector** to flag if it's a copy of another ticket.
-  3. Runs the **SLA Service** to stamp a strict deadline timestamp on the ticket (e.g., 1 minute for Critical, 10 minutes for Low).
-  4. Runs the **Technician Service** to find the best available technician based on skills and workload.
-* **Implementation:** Saves all this data into the PostgreSQL/SQLite database and creates an Activity Log history showing exactly *why* it made those decisions.
+3. **`GET /api/recurring`**
+   * **Use:** Analyzes historical database records to find failing assets. It is used by the dashboard to show proactive alerts like: *"The AC in Building B has broken 3 times this month; schedule a preventative overhaul."*
 
 ---
 
-## 2. Ticket Management & Admin APIs
+### 📝 2. Core Ticketing APIs
+These APIs handle the actual creation and viewing of maintenance requests.
 
-These APIs are used to view, manage, and process tickets. They enforce role-based permissions (Admins vs. Employees).
+4. **`POST /api/tickets`**
+   * **Use:** The main endpoint to submit a new maintenance request. It automatically runs the priority engine, duplicate checker, sets the SLA deadline timers, and recommends the best technician—all in one go—and then saves the ticket to the database.
 
-### `GET /api/tickets`
-* **What it does:** Fetches a list of tickets to display on the dashboard.
-* **How it works:** It supports searching and filtering (by category, priority, status). 
-* **Implementation:** Enforces security. If an `employee` requests the list, they only see the tickets they submitted. If an `admin` or `facility_manager` requests it, they see everything.
+5. **`GET /api/tickets`**
+   * **Use:** Fetches the list of tickets to display on the main dashboard. It securely filters data so employees only see their own tickets, while admins and facility managers see everything.
 
-### `GET /api/tickets/{ticket_id}`
-* **What it does:** Fetches the full, detailed view of a single ticket.
-* **How it works:** Includes the full audit history (Activity Logs) of who did what and when. It also dynamically calculates if the ticket is currently "Overdue" by comparing the current time against the SLA Deadline.
-
-### `PATCH /api/tickets/{ticket_id}/status`
-* **What it does:** Changes the status of a ticket (e.g., Pending ➡️ In Progress ➡️ Resolved).
-* **How it works:** Employees cannot resolve tickets; only admins can. 
-* **Implementation:** When marked as "Resolved", it stops the SLA timers, releases the assigned technician from their workload, and logs the final resolution notes.
+6. **`GET /api/tickets/{ticket_id}`**
+   * **Use:** Opens a specific ticket to view its full details, the calculated SLA deadline countdown, and the complete audit history of who did what.
 
 ---
 
-## 3. Intelligent Action APIs
+### 🛠️ 3. Admin Action & Override APIs
+These APIs allow administrators to update tickets, manage workflows, and manually override the AI's recommendations.
 
-These APIs allow administrators to override the AI or take manual action on the intelligent recommendations.
+7. **`PATCH /api/tickets/{ticket_id}/status`**
+   * **Use:** Used by admins to change a ticket's status to `In Progress` or `Resolved`. (When a ticket is resolved, it automatically stops the SLA deadline timer).
 
-### `POST /api/tickets/{ticket_id}/assign`
-* **What it does:** Assigns a specific technician to a ticket.
-* **How it works:** The frontend shows the "Recommended" technician, but the admin uses this API to actually lock them in.
-* **Implementation:** It increases the technician's `active_tickets_count` (which affects their future availability score) and automatically changes the ticket status to "In Progress".
+8. **`POST /api/tickets/{ticket_id}/assign`**
+   * **Use:** The AI *recommends* a technician, but this API is used by the admin to actually lock in the assignment. It updates the technician's active workload count.
 
-### `POST /api/tickets/{ticket_id}/override-priority`
-* **What it does:** Lets an admin manually change the AI-calculated priority.
-* **How it works:** If the AI said "Medium" but the admin knows it's "Critical", they can override it. 
-* **Implementation:** Requires the admin to provide a typed "Reason". It updates the priority, recalculates the SLA deadlines based on the new priority, and leaves a permanent audit log of the override.
+9. **`POST /api/tickets/{ticket_id}/override-priority`**
+   * **Use:** If the AI scores a ticket as "Low" but an admin knows it's an emergency, they use this API to force the priority to "Critical". It forces them to log a justification reason in the audit history.
 
-### `POST /api/tickets/{ticket_id}/escalate`
-* **What it does:** Manually triggers an escalation to higher management.
-* **How it works:** While the background automated SLA worker automatically escalates overdue tickets, this API allows an admin to escalate a ticket immediately if they feel it's necessary.
-* **Implementation:** Updates the `escalation_level` (Level 1, Level 2) and records the escalation timestamp.
+10. **`POST /api/tickets/{ticket_id}/escalate`**
+    * **Use:** Used by admins to manually trigger an escalation (Level 1 or Level 2) if a ticket is being ignored. *(Note: the system also does this automatically in the background when SLAs breach).*
 
-### `POST /api/tickets/{ticket_id}/link-duplicate/{target_ticket_id}`
-* **What it does:** Links a duplicate ticket to a master ticket.
-* **How it works:** If the Duplicate Detector flagged a ticket, the admin can click "Confirm Link".
-* **Implementation:** It sets the `duplicate_of_id` field so that the duplicate is officially tracked under the original master incident.
+11. **`POST /api/tickets/{ticket_id}/link-duplicate/{target_ticket_id}`**
+    * **Use:** If a duplicate is detected, the admin uses this API to officially link the new ticket as a "child" of the original "master" ticket so they can be tracked together.
 
 ---
 
-## 4. Proactive Analytics APIs
+### 📊 4. System & Helper APIs
+These are standard utility APIs used to populate dropdowns, dashboard charts, and verify the system is online.
 
-### `GET /api/recurring?min_occurrences=X`
-* **What it does:** Finds maintenance hotspots before they break completely.
-* **How it works:** Uses the **Recurring Issue Service** to group historical tickets by Building, Category, and Equipment.
-* **Implementation:** If it sees that the AC in Building B has broken 3 times this month, it returns a "Persistent failure cluster" warning, suggesting that the team stops doing quick fixes and schedules a full overhaul instead.
+12. **`GET /api/stats/dashboard`**
+    * **Use:** Fetches the aggregated numbers (e.g., Total open tickets, Overdue SLA count, Critical alerts) used to draw the charts on the admin dashboard.
 
----
+13. **`GET /api/technicians`**
+    * **Use:** Fetches the list of all technicians, their skills, and their current active workload to populate the manual assignment dropdowns.
 
-### Summary of How the System Flows:
-1. **Sarah (Employee)** types a request. The frontend calls `/preview-priority` and `/check-duplicate` to instantly warn her if it's an emergency or already reported.
-2. She clicks submit, calling `POST /api/tickets`. The backend does all the math, sets the SLA deadlines, and saves it.
-3. **Marcus (Admin)** looks at his dashboard using `GET /api/tickets`. He sees the new ticket.
-4. Marcus opens the ticket, sees the recommended technician, and assigns them using `POST /api/tickets/{ticket_id}/assign`.
-5. If the technician takes too long, the background SLA worker notices the deadline passed and escalates it automatically, or Marcus can do it manually via `/escalate`.
-6. Finally, Marcus uses `/status` to resolve the ticket, closing the loop!
+14. **`GET /api/users`**
+    * **Use:** Fetches the list of employees/users to populate the "Role Switcher" dropdown used in the hackathon demo.
+
+15. **`GET /api/health`**
+    * **Use:** A simple ping API to verify that the backend server is online and the database is successfully connected.
