@@ -179,10 +179,10 @@ export const CreateTicketModal: React.FC<Props> = ({
   const buildings = ['Building A', 'Building B', 'Building C', 'Building D - Warehouse'];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-3xl w-full my-8 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/70 backdrop-blur-sm overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        {/* Fixed Header */}
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
           <div>
             <h3 className="font-bold text-base text-slate-900">Create New Maintenance Request</h3>
             <p className="text-xs text-slate-500">
@@ -198,7 +198,7 @@ export const CreateTicketModal: React.FC<Props> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <form id="create-ticket-form" onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto flex-1">
           {errorMessage && (
             <div className="p-3 text-xs bg-rose-50 border border-rose-200 text-rose-800 rounded-xl">
               {errorMessage}
@@ -426,25 +426,26 @@ export const CreateTicketModal: React.FC<Props> = ({
               </div>
             )}
           </div>
-
-          {/* Form Actions */}
-          <div className="flex items-center justify-end gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-5 py-2 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
-            >
-              {isSubmitting ? 'Submitting...' : 'Submit Request'}
-            </button>
-          </div>
         </form>
+
+        {/* Fixed Footer Actions */}
+        <div className="px-6 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-3 shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="create-ticket-form"
+            disabled={isSubmitting}
+            className="px-5 py-2 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+          >
+            {isSubmitting ? 'Submitting...' : 'Submit Maintenance Request'}
+          </button>
+        </div>
       </div>
     </div>
   );

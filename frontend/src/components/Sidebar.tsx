@@ -84,14 +84,20 @@ export const Sidebar: React.FC<Props> = ({
             <LayoutDashboard className="w-4 h-4" />
             <span>{getTicketsLabel()}</span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             {emergencyCount > 0 && (
-              <span className="text-[10px] bg-rose-500 text-white font-bold px-1.5 py-0.5 rounded-full animate-pulse">
+              <span
+                title={`${emergencyCount} active life-safety emergency alert${emergencyCount > 1 ? 's' : ''}`}
+                className="text-[10px] bg-rose-500 text-white font-bold px-1.5 py-0.5 rounded-full animate-pulse shadow-2xs"
+              >
                 {emergencyCount}
               </span>
             )}
             {overdueCount > 0 && (
-              <span className="text-[10px] bg-amber-500 text-slate-950 font-bold px-1.5 py-0.5 rounded-full">
+              <span
+                title={`${overdueCount} overdue SLA breach${overdueCount > 1 ? 'es' : ''}`}
+                className="text-[10px] bg-amber-500 text-slate-950 font-bold px-1.5 py-0.5 rounded-full shadow-2xs"
+              >
                 {overdueCount}
               </span>
             )}
@@ -169,7 +175,7 @@ export const Sidebar: React.FC<Props> = ({
             <optgroup label="🏢 Facility Managers / Admins">
               {admins.map((u) => (
                 <option key={u.id} value={u.id}>
-                  {u.name} (Admin - {u.department})
+                  {u.name}
                 </option>
               ))}
             </optgroup>
@@ -179,7 +185,7 @@ export const Sidebar: React.FC<Props> = ({
             <optgroup label="👤 Employees (Submitters)">
               {employees.map((u) => (
                 <option key={u.id} value={u.id}>
-                  {u.name} (Employee - {u.department})
+                  {u.name}
                 </option>
               ))}
             </optgroup>
@@ -189,7 +195,7 @@ export const Sidebar: React.FC<Props> = ({
             <optgroup label="🔧 Technicians (Field Dispatch)">
               {technicians.map((u) => (
                 <option key={u.id} value={u.id}>
-                  {u.name} (Technician - {u.department})
+                  {u.name}
                 </option>
               ))}
             </optgroup>

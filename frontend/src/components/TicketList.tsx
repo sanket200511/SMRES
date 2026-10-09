@@ -157,17 +157,17 @@ export const TicketList: React.FC<Props> = ({
 
       {/* Ticket Table */}
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs border-collapse">
+        <table className="w-full min-w-[1080px] text-left text-xs border-collapse">
           <thead>
             <tr className="bg-slate-100/75 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
-              <th className="py-3 px-4">Ticket</th>
-              <th className="py-3 px-4">Issue & Location</th>
-              <th className="py-3 px-4">Category</th>
-              <th className="py-3 px-4">Priority (Formula)</th>
-              <th className="py-3 px-4">Status</th>
-              <th className="py-3 px-4">Technician</th>
-              <th className="py-3 px-4">SLA / Escalation</th>
-              <th className="py-3 px-4 text-right">Actions</th>
+              <th className="py-3 px-4 w-[110px] whitespace-nowrap">Ticket</th>
+              <th className="py-3 px-4 min-w-[280px]">Issue &amp; Location</th>
+              <th className="py-3 px-4 w-[120px] whitespace-nowrap">Category</th>
+              <th className="py-3 px-4 w-[170px] whitespace-nowrap">Priority (Formula)</th>
+              <th className="py-3 px-4 w-[110px] whitespace-nowrap">Status</th>
+              <th className="py-3 px-4 w-[140px] whitespace-nowrap">Technician</th>
+              <th className="py-3 px-4 w-[180px] whitespace-nowrap">SLA / Escalation</th>
+              <th className="py-3 px-4 w-[90px] whitespace-nowrap text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -290,24 +290,29 @@ export const TicketList: React.FC<Props> = ({
 
                   {/* SLA / Escalation */}
                   <td className="py-3.5 px-4 whitespace-nowrap">
-                    <div className="space-y-0.5">
+                    <div className="flex flex-col gap-1 items-start">
                       {t.status === 'Resolved' ? (
-                        <span className="text-[11px] text-emerald-700 font-medium">Met & Resolved</span>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          Met &amp; Resolved
+                        </span>
                       ) : t.is_overdue ? (
-                        <span className="text-[11px] font-bold text-rose-700 flex items-center gap-1">
-                          <AlertTriangle className="w-3.5 h-3.5" /> SLA Breached
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
+                          <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                          SLA Breached
                         </span>
                       ) : t.time_remaining_minutes !== undefined ? (
-                        <span className="text-[11px] text-slate-600 flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-slate-400" />
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                          <Clock className="w-3 h-3 text-slate-400 shrink-0" />
                           {Math.max(0, Math.floor(t.time_remaining_minutes / 60))}h {Math.max(0, t.time_remaining_minutes % 60)}m left
                         </span>
                       ) : null}
 
                       {t.is_escalated && (
-                        <div className="text-[10px] font-bold text-purple-700 flex items-center gap-1">
-                          <ShieldAlert className="w-3 h-3" /> Level {t.escalation_level} Escalation
-                        </div>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                          <ShieldAlert className="w-3 h-3 text-purple-600 shrink-0" />
+                          Level {t.escalation_level} Escalation
+                        </span>
                       )}
                     </div>
                   </td>

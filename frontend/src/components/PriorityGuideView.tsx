@@ -64,45 +64,55 @@ export const PriorityGuideView: React.FC = () => {
 
       {/* Section 2: Calibrated Thresholds & SLAs */}
       <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-4">
-        <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
-          <Clock className="w-4 h-4 text-blue-600" />
-          2. Calibrated Priority Thresholds & SLAs
-        </h3>
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
+            <Clock className="w-4 h-4 text-blue-600" />
+            2. Calibrated Priority Thresholds &amp; SLAs
+          </h3>
+          <span className="text-[11px] font-mono font-medium px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+            Production &amp; Demo Dual Mode
+          </span>
+        </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border border-slate-200 rounded-xl overflow-hidden">
             <thead className="bg-slate-100 text-slate-700 font-semibold uppercase text-[11px]">
               <tr>
                 <th className="py-2.5 px-3">Priority Level</th>
-                <th className="py-2.5 px-3">Calculated Score Range</th>
-                <th className="py-2.5 px-3">SLA Target Response Window</th>
-                <th className="py-2.5 px-3">Escalation Threshold</th>
+                <th className="py-2.5 px-3">Score Range</th>
+                <th className="py-2.5 px-3">Production SLA</th>
+                <th className="py-2.5 px-3">Demo Fast SLA</th>
+                <th className="py-2.5 px-3">Escalation Policy</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               <tr className="bg-rose-50/40">
                 <td className="py-2.5 px-3 font-bold text-rose-800">Critical</td>
-                <td className="py-2.5 px-3 font-mono font-semibold">75 – 100 points</td>
+                <td className="py-2.5 px-3 font-mono font-semibold">75 – 100 pts</td>
                 <td className="py-2.5 px-3 font-bold text-rose-900">1.0 Hour</td>
-                <td className="py-2.5 px-3 text-slate-600">Immediate Facility Lead dispatch</td>
+                <td className="py-2.5 px-3 font-mono text-rose-700 font-semibold">1 Minute</td>
+                <td className="py-2.5 px-3 text-slate-600">Immediate Facility Lead dispatch + PagerDuty</td>
               </tr>
               <tr className="bg-amber-50/40">
                 <td className="py-2.5 px-3 font-bold text-amber-800">High</td>
-                <td className="py-2.5 px-3 font-mono font-semibold">50 – 74 points</td>
+                <td className="py-2.5 px-3 font-mono font-semibold">50 – 74 pts</td>
                 <td className="py-2.5 px-3 font-bold text-amber-900">4.0 Hours</td>
-                <td className="py-2.5 px-3 text-slate-600">Auto-escalate after 4 hours</td>
+                <td className="py-2.5 px-3 font-mono text-amber-700 font-semibold">2 Minutes</td>
+                <td className="py-2.5 px-3 text-slate-600">Auto-escalate to Senior Tech / Supervisor</td>
               </tr>
               <tr className="bg-blue-50/40">
                 <td className="py-2.5 px-3 font-bold text-blue-800">Medium</td>
-                <td className="py-2.5 px-3 font-mono font-semibold">25 – 49 points</td>
+                <td className="py-2.5 px-3 font-mono font-semibold">25 – 49 pts</td>
                 <td className="py-2.5 px-3 font-bold text-blue-900">24.0 Hours (1 Day)</td>
-                <td className="py-2.5 px-3 text-slate-600">Auto-escalate after 24 hours</td>
+                <td className="py-2.5 px-3 font-mono text-blue-700 font-semibold">5 Minutes</td>
+                <td className="py-2.5 px-3 text-slate-600">Auto-escalate after expiration</td>
               </tr>
               <tr>
                 <td className="py-2.5 px-3 font-bold text-slate-700">Low</td>
-                <td className="py-2.5 px-3 font-mono font-semibold">0 – 24 points</td>
+                <td className="py-2.5 px-3 font-mono font-semibold">0 – 24 pts</td>
                 <td className="py-2.5 px-3 font-bold text-slate-800">48.0 Hours (2 Days)</td>
-                <td className="py-2.5 px-3 text-slate-600">Auto-escalate after 48 hours</td>
+                <td className="py-2.5 px-3 font-mono text-slate-600 font-semibold">10 Minutes</td>
+                <td className="py-2.5 px-3 text-slate-600">Auto-escalate after expiration</td>
               </tr>
             </tbody>
           </table>
@@ -116,8 +126,16 @@ export const PriorityGuideView: React.FC = () => {
           3. Independent Life-Safety Emergency Alert
         </h3>
         <p className="text-xs leading-relaxed text-rose-900">
-          Critical safety conditions (such as a suspected <strong>gas leak</strong>, <strong>electrical fire hazard</strong>, <strong>live sparking wiring</strong>, or <strong>structural collapse</strong>) independently override numerical scoring. When hazardous keywords or a maximum safety score (5/5) are detected, the system immediately flags a prominent emergency alert banner and mandates immediate dispatch.
+          Critical safety conditions independently override standard numerical scoring. When safety hazard keywords or a safety score of 5/5 are detected, the system immediately tags the incident with an emergency alert banner and accelerates escalation.
         </p>
+        <div className="pt-2 flex flex-wrap gap-1.5 items-center">
+          <span className="text-[11px] font-semibold text-rose-800 uppercase tracking-wider mr-1">Trigger Keywords:</span>
+          {['gas leak', 'odor of gas', 'fire', 'smoke', 'sparking', 'live wire', 'collapse', 'flooding'].map((kw) => (
+            <span key={kw} className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-white border border-rose-300 text-rose-800 font-semibold shadow-2xs">
+              "{kw}"
+            </span>
+          ))}
+        </div>
       </div>
 
       {/* Section 4: Duplicate Incident Detection */}
