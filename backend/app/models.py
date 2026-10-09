@@ -14,9 +14,11 @@ class User(Base):
     id = Column(String(50), primary_key=True, index=True)
     name = Column(String(100), nullable=False)
     email = Column(String(100), unique=True, index=True, nullable=False)
-    role = Column(String(50), nullable=False)  # "employee", "admin", "facility_manager"
+    hashed_password = Column(String(255), nullable=True)
+    role = Column(String(50), nullable=False, default="employee")  # "employee", "admin", "facility_manager"
     department = Column(String(100), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now)
+
 
 
 class Technician(Base):

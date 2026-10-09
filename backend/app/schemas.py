@@ -11,6 +11,26 @@ class UserResponse(BaseModel):
     department: Optional[str] = None
 
 
+class UserRegisterRequest(BaseModel):
+    email: str = Field(..., min_length=3, max_length=100)
+    password: str = Field(..., min_length=6, max_length=100)
+    name: Optional[str] = Field(default=None, max_length=100)
+    role: Optional[str] = Field(default="employee")
+    department: Optional[str] = Field(default=None, max_length=100)
+
+
+class UserLoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class AuthResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse
+
+
+
 class TechnicianResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str

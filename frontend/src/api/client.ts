@@ -12,10 +12,27 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL
   ? `${import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '')}/api`
   : '/api';
 
+export function getStoredToken(): string | null {
+  return localStorage.getItem('smres_jwt_token');
+}
+
+export function setStoredToken(token: string) {
+  localStorage.setItem('smres_jwt_token', token);
+}
+
+export function clearStoredToken() {
+  localStorage.removeItem('smres_jwt_token');
+  localStorage.removeItem('smres_jwt_user');
+}
+
 function getHeaders(currentUser?: User) {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
+  const token = getStoredToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
   if (currentUser) {
     headers['x-user-role'] = currentUser.role;
     headers['x-user-id'] = currentUser.id;
@@ -31,6 +48,52 @@ function getHeaders(currentUser?: User) {
 }
 
 export const api = {
+  async register(payload: {
+    email: string;
+    password: string;
+    name?: string;
+    role?: string;
+    department?: string;
+  }): Promise<{ access_token: string; token_type: string; user: User }> {
+    const res = await fetch(`${API_BASE}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Registration failed');
+    }
+    const data = await res.json();
+    setStoredToken(data.access_token);
+    localStorage.setItem('smres_jwt_user', JSON.stringify(data.user));
+    return data;
+  },
+
+  async login(payload: { email: string; password: string }): Promise<{ access_token: string; token_type: string; user: User }> {
+    const res = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Invalid email or password');
+    }
+    const data = await res.json();
+    setStoredToken(data.access_token);
+    localStorage.setItem('smres_jwt_user', JSON.stringify(data.user));
+    return data;
+  },
+
+  async getMe(): Promise<User> {
+    const res = await fetch(`${API_BASE}/auth/me`, {
+      headers: getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to load user profile');
+    return res.json();
+  },
+
   async getUsers(): Promise<User[]> {
     const res = await fetch(`${API_BASE}/users`);
     if (!res.ok) throw new Error('Failed to load users');

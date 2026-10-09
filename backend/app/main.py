@@ -8,7 +8,7 @@ from .database import engine, Base, SessionLocal
 from .seed_data import seed_database
 from .services.sla_service import check_and_escalate_overdue_tickets
 from .config import BACKGROUND_CHECK_INTERVAL_SECONDS
-from .routers import tickets, technicians, users, stats, recurring
+from .routers import tickets, technicians, users, stats, recurring, auth
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("smres")
@@ -75,6 +75,8 @@ app.include_router(technicians.router)
 app.include_router(users.router)
 app.include_router(stats.router)
 app.include_router(recurring.router)
+app.include_router(auth.router)
+
 
 @app.get("/api/health")
 def health_check():

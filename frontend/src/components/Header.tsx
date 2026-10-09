@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Zap, RefreshCw, UserCheck, Shield } from 'lucide-react';
+import { Plus, Zap, RefreshCw, LogIn, LogOut, Shield, User as UserIcon } from 'lucide-react';
 import { User } from '../types';
 
 interface Props {
@@ -9,6 +9,9 @@ interface Props {
   isCheckingSla: boolean;
   onRefreshData: () => void;
   isRefreshing: boolean;
+  isLoggedInWithJwt: boolean;
+  onOpenAuthModal: (mode: 'login' | 'register') => void;
+  onLogout: () => void;
 }
 
 export const Header: React.FC<Props> = ({
@@ -18,18 +21,21 @@ export const Header: React.FC<Props> = ({
   isCheckingSla,
   onRefreshData,
   isRefreshing,
+  isLoggedInWithJwt,
+  onOpenAuthModal,
+  onLogout,
 }) => {
   const isAdmin = currentUser.role === 'admin' || currentUser.role === 'facility_manager';
   const isTech = currentUser.role === 'technician';
 
   return (
     <header className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 shadow-2xs">
-      {/* Title & Description */}
-      <div>
+      {/* Title & Portal Badge */}
+      <div className="flex items-center gap-3">
         <h2 className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
           Operations & Facility Portal
           <span
-            className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+            className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
               isAdmin
                 ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
                 : isTech
@@ -46,7 +52,7 @@ export const Header: React.FC<Props> = ({
         </h2>
       </div>
 
-      {/* Action Buttons */}
+      {/* Action Buttons & Auth Profile */}
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -74,11 +80,55 @@ export const Header: React.FC<Props> = ({
         <button
           type="button"
           onClick={onOpenCreateModal}
-          className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm transition-all cursor-pointer hover:shadow-blue-500/25"
+          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm transition-all cursor-pointer hover:shadow-blue-500/25"
         >
           <Plus className="w-4 h-4" />
           <span>New Maintenance Request</span>
         </button>
+
+        {/* Divider */}
+        <div className="h-6 w-px bg-slate-200 mx-1" />
+
+        {/* Authentication Controls */}
+        {isLoggedInWithJwt ? (
+          <div className="flex items-center gap-2 pl-1">
+            <div className="flex items-center gap-2 px-2.5 py-1 bg-slate-100 border border-slate-200 rounded-lg">
+              <div className="w-6 h-6 rounded-full bg-blue-600 text-white text-[11px] font-bold flex items-center justify-center">
+                {currentUser.name.charAt(0)}
+              </div>
+              <div className="text-left hidden sm:block">
+                <p className="text-xs font-semibold text-slate-800 leading-tight">{currentUser.name}</p>
+                <p className="text-[10px] text-slate-500 capitalize">{currentUser.role} • JWT Active</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onLogout}
+              className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
+              title="Sign Out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onOpenAuthModal('login')}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg transition cursor-pointer"
+            >
+              <LogIn className="w-3.5 h-3.5 text-blue-600" />
+              <span>Sign In</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onOpenAuthModal('register')}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition cursor-pointer shadow-sm"
+            >
+              <span>Register</span>
+            </button>
+          </div>
+        )}
       </div>
     </header>
   );
