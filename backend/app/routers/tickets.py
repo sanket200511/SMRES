@@ -26,21 +26,42 @@ router = APIRouter()
 
 def resolve_caller_identity(
     db: Session,
+    authorization: Optional[str] = None,
     x_demo_user_id: Optional[str] = None,
     x_user_id: Optional[str] = None,
     x_user_role: Optional[str] = None,
     x_user_name: Optional[str] = None,
-    authorization: Optional[str] = None,
+    require_auth: bool = False,
 ):
+    """
+    Resolves the authenticated user identity and role from:
+    1. Authorization: Bearer <JWT>
+    2. X-Demo-User-ID / x-user-id with DB verification
+    3. Test role headers for automated testing
+    Raises 401 if require_auth is True and no valid credentials are provided.
+    """
     # 1. Check JWT token if provided
-    if isinstance(authorization, str) and authorization.startswith("Bearer "):
+    if isinstance(authorization, str) and authorization.strip():
+        if not authorization.startswith("Bearer "):
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid authorization format. Bearer token required.",
+            )
         token = authorization.split("Bearer ", 1)[1].strip()
         from ..auth import decode_access_token
         payload = decode_access_token(token)
-        if payload and "sub" in payload:
-            jwt_user = db.query(User).filter(User.id == payload["sub"]).first()
-            if jwt_user:
-                return jwt_user.id, jwt_user.role, jwt_user.name
+        if not payload or "sub" not in payload:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or expired token.",
+            )
+        jwt_user = db.query(User).filter(User.id == payload["sub"]).first()
+        if not jwt_user:
+            raise HTTPException(
+                status_code=401,
+                detail="Authenticated user account not found or deactivated.",
+            )
+        return jwt_user.id, jwt_user.role, jwt_user.name
 
     # 2. Check X-Demo-User-ID or x-user-id
     valid_demo_id = x_demo_user_id if isinstance(x_demo_user_id, str) and x_demo_user_id.strip() else None
@@ -48,11 +69,24 @@ def resolve_caller_identity(
     valid_role = x_user_role if isinstance(x_user_role, str) and x_user_role.strip() else None
     valid_name = x_user_name if isinstance(x_user_name, str) and x_user_name.strip() else None
 
-    uid = valid_demo_id or valid_user_id or "admin-1"
-    user = db.query(User).filter(User.id == uid).first()
-    if user:
-        return user.id, user.role, user.name
-    return uid, valid_role or "admin", valid_name or "Marcus Vance"
+    uid = valid_demo_id or valid_user_id
+    if uid:
+        user = db.query(User).filter(User.id == uid).first()
+        if user:
+            return user.id, user.role, user.name
+        if valid_role:
+            return uid, valid_role, valid_name or "Test User"
+
+    if valid_role:
+        return valid_user_id or "test-user", valid_role, valid_name or "Test User"
+
+    if require_auth:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required. Please provide a valid Bearer token.",
+        )
+
+    return None, "public", "Anonymous User"
 
 
 def format_ticket_response(ticket: MaintenanceRequest) -> TicketResponse:
@@ -100,9 +134,10 @@ def check_ticket_duplicate(data: TicketCreate, db: Session = Depends(get_db)):
 def create_ticket(
     data: TicketCreate,
     db: Session = Depends(get_db),
-    x_user_role: Optional[str] = Header(default="employee"),
-    x_user_id: Optional[str] = Header(default="emp-1"),
-    x_user_name: Optional[str] = Header(default="Sarah Jenkins"),
+    authorization: Optional[str] = Header(default=None),
+    x_user_role: Optional[str] = Header(default=None),
+    x_user_id: Optional[str] = Header(default=None),
+    x_user_name: Optional[str] = Header(default=None),
     x_demo_user_id: Optional[str] = Header(default=None),
 ):
     """
@@ -110,7 +145,7 @@ def create_ticket(
     duplicate incident detection, SLA deadline calculation, and technician recommendation.
     """
     caller_id, caller_role, caller_name = resolve_caller_identity(
-        db, x_demo_user_id, x_user_id, x_user_role, x_user_name
+        db, authorization, x_demo_user_id, x_user_id, x_user_role, x_user_name, require_auth=True
     )
     now = utc_now()
     # Generate sequential unique ticket ID
@@ -243,8 +278,9 @@ def list_tickets(
     building: Optional[str] = None,
     search: Optional[str] = None,
     submitted_by: Optional[str] = None,
-    x_user_role: Optional[str] = Header(default="admin"),
-    x_user_id: Optional[str] = Header(default="admin-1"),
+    authorization: Optional[str] = Header(default=None),
+    x_user_role: Optional[str] = Header(default=None),
+    x_user_id: Optional[str] = Header(default=None),
     x_demo_user_id: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
@@ -253,7 +289,7 @@ def list_tickets(
     Employee view is restricted to their own submitted tickets unless viewing as admin.
     """
     caller_id, caller_role, _ = resolve_caller_identity(
-        db, x_demo_user_id, x_user_id, x_user_role, None
+        db, authorization, x_demo_user_id, x_user_id, x_user_role, None, require_auth=False
     )
     query = db.query(MaintenanceRequest)
 
@@ -299,14 +335,15 @@ def update_ticket_status(
     ticket_id: str,
     payload: TicketStatusUpdate,
     db: Session = Depends(get_db),
-    x_user_role: Optional[str] = Header(default="admin"),
-    x_user_id: Optional[str] = Header(default="admin-1"),
-    x_user_name: Optional[str] = Header(default="Marcus Vance"),
+    authorization: Optional[str] = Header(default=None),
+    x_user_role: Optional[str] = Header(default=None),
+    x_user_id: Optional[str] = Header(default=None),
+    x_user_name: Optional[str] = Header(default=None),
     x_demo_user_id: Optional[str] = Header(default=None),
 ):
     """Update ticket lifecycle status (Pending -> In Progress -> Resolved)."""
     caller_id, caller_role, caller_name = resolve_caller_identity(
-        db, x_demo_user_id, x_user_id, x_user_role, x_user_name
+        db, authorization, x_demo_user_id, x_user_id, x_user_role, x_user_name, require_auth=True
     )
     ticket = db.query(MaintenanceRequest).filter(MaintenanceRequest.id == ticket_id).first()
     if not ticket:
@@ -316,7 +353,7 @@ def update_ticket_status(
     if payload.status not in valid_statuses:
         raise HTTPException(status_code=400, detail=f"Invalid status. Choose from {valid_statuses}")
 
-    # Role check: only admins/facility managers can resolve or set in progress
+    # Role check: only admins/facility managers or technicians can resolve or set in progress
     if caller_role.lower() == "employee" and payload.status in ["In Progress", "Resolved"]:
         raise HTTPException(status_code=403, detail="Employee role is not authorized to transition status to In Progress or Resolved.")
 
@@ -356,17 +393,18 @@ def assign_technician(
     ticket_id: str,
     payload: TicketAssignTech,
     db: Session = Depends(get_db),
-    x_user_role: Optional[str] = Header(default="admin"),
-    x_user_id: Optional[str] = Header(default="admin-1"),
-    x_user_name: Optional[str] = Header(default="Marcus Vance"),
+    authorization: Optional[str] = Header(default=None),
+    x_user_role: Optional[str] = Header(default=None),
+    x_user_id: Optional[str] = Header(default=None),
+    x_user_name: Optional[str] = Header(default=None),
     x_demo_user_id: Optional[str] = Header(default=None),
 ):
     """Assigns technician to ticket with workload management."""
     caller_id, caller_role, caller_name = resolve_caller_identity(
-        db, x_demo_user_id, x_user_id, x_user_role, x_user_name
+        db, authorization, x_demo_user_id, x_user_id, x_user_role, x_user_name, require_auth=True
     )
-    if caller_role.lower() == "employee":
-        raise HTTPException(status_code=403, detail="Employees cannot assign technicians.")
+    if caller_role.lower() not in ["admin", "facility_manager"]:
+        raise HTTPException(status_code=403, detail="Only administrators or facility managers can assign technicians.")
 
     ticket = db.query(MaintenanceRequest).filter(MaintenanceRequest.id == ticket_id).first()
     if not ticket:
@@ -390,17 +428,18 @@ def override_ticket_priority(
     ticket_id: str,
     payload: TicketPriorityOverride,
     db: Session = Depends(get_db),
-    x_user_role: Optional[str] = Header(default="admin"),
-    x_user_id: Optional[str] = Header(default="admin-1"),
-    x_user_name: Optional[str] = Header(default="Marcus Vance"),
+    authorization: Optional[str] = Header(default=None),
+    x_user_role: Optional[str] = Header(default=None),
+    x_user_id: Optional[str] = Header(default=None),
+    x_user_name: Optional[str] = Header(default=None),
     x_demo_user_id: Optional[str] = Header(default=None),
 ):
     """Admin overrides priority recommendation with justification."""
     caller_id, caller_role, caller_name = resolve_caller_identity(
-        db, x_demo_user_id, x_user_id, x_user_role, x_user_name
+        db, authorization, x_demo_user_id, x_user_id, x_user_role, x_user_name, require_auth=True
     )
-    if caller_role.lower() == "employee":
-        raise HTTPException(status_code=403, detail="Employees cannot override priority.")
+    if caller_role.lower() not in ["admin", "facility_manager"]:
+        raise HTTPException(status_code=403, detail="Only administrators or facility managers can override priority scores.")
 
     ticket = db.query(MaintenanceRequest).filter(MaintenanceRequest.id == ticket_id).first()
     if not ticket:
@@ -442,15 +481,19 @@ def escalate_ticket(
     ticket_id: str,
     payload: TicketEscalateRequest,
     db: Session = Depends(get_db),
-    x_user_role: Optional[str] = Header(default="admin"),
-    x_user_id: Optional[str] = Header(default="admin-1"),
-    x_user_name: Optional[str] = Header(default="Marcus Vance"),
+    authorization: Optional[str] = Header(default=None),
+    x_user_role: Optional[str] = Header(default=None),
+    x_user_id: Optional[str] = Header(default=None),
+    x_user_name: Optional[str] = Header(default=None),
     x_demo_user_id: Optional[str] = Header(default=None),
 ):
     """Triggers manual escalation for unresolved ticket."""
     caller_id, caller_role, caller_name = resolve_caller_identity(
-        db, x_demo_user_id, x_user_id, x_user_role, x_user_name
+        db, authorization, x_demo_user_id, x_user_id, x_user_role, x_user_name, require_auth=True
     )
+    if caller_role.lower() == "employee":
+        raise HTTPException(status_code=403, detail="Employees cannot manually escalate tickets.")
+
     ticket = db.query(MaintenanceRequest).filter(MaintenanceRequest.id == ticket_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found.")
@@ -485,15 +528,19 @@ def link_ticket_as_duplicate(
     ticket_id: str,
     target_ticket_id: str,
     db: Session = Depends(get_db),
-    x_user_role: Optional[str] = Header(default="admin"),
-    x_user_id: Optional[str] = Header(default="admin-1"),
-    x_user_name: Optional[str] = Header(default="Marcus Vance"),
+    authorization: Optional[str] = Header(default=None),
+    x_user_role: Optional[str] = Header(default=None),
+    x_user_id: Optional[str] = Header(default=None),
+    x_user_name: Optional[str] = Header(default=None),
     x_demo_user_id: Optional[str] = Header(default=None),
 ):
     """Links ticket to an existing master incident."""
     caller_id, caller_role, caller_name = resolve_caller_identity(
-        db, x_demo_user_id, x_user_id, x_user_role, x_user_name
+        db, authorization, x_demo_user_id, x_user_id, x_user_role, x_user_name, require_auth=True
     )
+    if caller_role.lower() not in ["admin", "facility_manager"]:
+        raise HTTPException(status_code=403, detail="Only administrators or facility managers can link tickets.")
+
     ticket = db.query(MaintenanceRequest).filter(MaintenanceRequest.id == ticket_id).first()
     target = db.query(MaintenanceRequest).filter(MaintenanceRequest.id == target_ticket_id).first()
     if not ticket or not target:
@@ -532,17 +579,18 @@ def assign_technician_patch(
     ticket_id: str,
     payload: TicketAssignTech,
     db: Session = Depends(get_db),
-    x_user_role: Optional[str] = Header(default="admin"),
-    x_user_id: Optional[str] = Header(default="admin-1"),
-    x_user_name: Optional[str] = Header(default="Marcus Vance"),
+    authorization: Optional[str] = Header(default=None),
+    x_user_role: Optional[str] = Header(default=None),
+    x_user_id: Optional[str] = Header(default=None),
+    x_user_name: Optional[str] = Header(default=None),
     x_demo_user_id: Optional[str] = Header(default=None),
 ):
     """PATCH endpoint for assigning a technician."""
     caller_id, caller_role, caller_name = resolve_caller_identity(
-        db, x_demo_user_id, x_user_id, x_user_role, x_user_name
+        db, authorization, x_demo_user_id, x_user_id, x_user_role, x_user_name, require_auth=True
     )
-    if caller_role.lower() == "employee":
-        raise HTTPException(status_code=403, detail="Employees cannot assign technicians.")
+    if caller_role.lower() not in ["admin", "facility_manager"]:
+        raise HTTPException(status_code=403, detail="Only administrators or facility managers can assign technicians.")
 
     ticket = db.query(MaintenanceRequest).filter(MaintenanceRequest.id == ticket_id).first()
     if not ticket:

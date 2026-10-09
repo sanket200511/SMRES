@@ -30,9 +30,8 @@ def register_user(payload: UserRegisterRequest, db: Session = Depends(get_db)):
 
     # Derive name if not provided
     name = payload.name.strip() if payload.name and payload.name.strip() else normalized_email.split("@")[0].replace(".", " ").title()
-    role = payload.role.strip().lower() if payload.role and payload.role.strip() else "employee"
-    if role not in ["employee", "admin", "facility_manager"]:
-        role = "employee"
+    # Public self-registration is strictly restricted to employee role (never admin)
+    role = "employee"
 
     # Generate sequential or unique user ID
     user_id = f"usr-{uuid.uuid4().hex[:8]}"

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from .models import User, Technician, MaintenanceRequest, TicketActivity, utc_now
 from .services.priority_engine import calculate_priority_score
 from .services.sla_service import calculate_sla_deadline
+from .auth import hash_password
 
 def seed_database(db: Session):
     # Check if already seeded
@@ -11,12 +12,13 @@ def seed_database(db: Session):
 
     now = utc_now()
 
-    # 1. Seed Users
+    # 1. Seed Users with securely hashed passwords
+    default_hash = hash_password("password123")
     users = [
-        User(id="emp-1", name="Sarah Jenkins", email="sarah.jenkins@company.com", role="employee", department="Research & Development"),
-        User(id="emp-2", name="David Chen", email="david.chen@company.com", role="employee", department="Product Design"),
-        User(id="admin-1", name="Marcus Vance", email="marcus.vance@company.com", role="admin", department="Facility Operations Lead"),
-        User(id="admin-2", name="Elena Rostova", email="elena.rostova@company.com", role="admin", department="VP of Operations"),
+        User(id="emp-1", name="Sarah Jenkins", email="sarah.jenkins@company.com", role="employee", department="Research & Development", hashed_password=default_hash),
+        User(id="emp-2", name="David Chen", email="david.chen@company.com", role="employee", department="Product Design", hashed_password=default_hash),
+        User(id="admin-1", name="Marcus Vance", email="marcus.vance@company.com", role="admin", department="Facility Operations Lead", hashed_password=default_hash),
+        User(id="admin-2", name="Elena Rostova", email="elena.rostova@company.com", role="admin", department="VP of Operations", hashed_password=default_hash),
     ]
     for u in users:
         db.add(u)
