@@ -2,8 +2,11 @@ import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DB_PATH = BASE_DIR / "smres.db"
-DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DB_PATH}")
+
+# PostgreSQL is the mandatory primary database (running on port 5433 with trust authentication)
+DEFAULT_POSTGRES_URL = "postgresql+psycopg://postgres@localhost:5433/smres"
+DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_POSTGRES_URL)
+
 
 # Priority engine weights
 WEIGHT_SAFETY = 8
