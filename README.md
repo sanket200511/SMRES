@@ -68,9 +68,10 @@ Evaluates new submissions against active unresolved tickets using composite simi
 ## 🛠️ Technology Stack
 
 - **Frontend**: React 19, Vite, TypeScript, Tailwind CSS v4, Lucide React
-- **Backend**: Python 3.14 / FastAPI, SQLAlchemy 2.0 ORM, Pydantic V2, Uvicorn
-- **Database**: PostgreSQL 18 (with SQLite fallback)
-- **Testing**: Pytest & Psycopg (23 automated tests covering 7 core integration scenarios)
+- **Backend**: Python 3.10+ / FastAPI, SQLAlchemy 2.0 ORM, Pydantic V2, Uvicorn, PyJWT
+- **Database**: PostgreSQL 18 (Mandatory primary database, running on port 5433 with trust auth)
+- **Migrations**: Alembic (`backend/alembic/`)
+- **Testing**: Pytest (36 automated tests covering unit, API, auth, assignment, and PostgreSQL integration)
 
 ---
 
@@ -79,35 +80,50 @@ Evaluates new submissions against active unresolved tickets using composite simi
 ### Prerequisites
 - Python 3.10+
 - Node.js 18+ and npm
-- PostgreSQL 14+ (default port: `5433` or `5432`)
+- PostgreSQL 14+ (default configured on port `5433` or via `DATABASE_URL`)
 
-### 1. Clone the Repository
-```bash
-git clone https://github.com/sanket200511/SMRES.git
-cd SMRES
+### Option A: One-Command Automated Setup (Recommended)
+
+Run the included PowerShell automation scripts from the project root:
+
+```powershell
+# 1. Install dependencies, apply Alembic migrations, and seed demo records:
+powershell -ExecutionPolicy Bypass -File scripts/setup.ps1
+
+# 2. Launch full application (PostgreSQL + FastAPI + Vite React):
+powershell -ExecutionPolicy Bypass -File scripts/start-demo.ps1
+
+# 3. Stop all services when finished:
+powershell -ExecutionPolicy Bypass -File scripts/stop-demo.ps1
 ```
 
-### 2. Backend Setup & Running PostgreSQL
-```bash
+### Option B: Manual Setup
+
+#### 1. Backend & Database
+```powershell
 # Install Python dependencies
 pip install -r backend/requirements.txt
 
-# Start PostgreSQL server (if using dedicated project instance):
-& "D:\Apps Data\PostgreSQL\bin\postgres.exe" -D "d:\Projects\SMRES\pgdata"
+# Run Alembic migrations and seed demo data
+cd backend
+alembic upgrade head
+python ..\scripts\seed_demo.py
+cd ..
 
 # Run FastAPI backend with PostgreSQL:
-python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload
+python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
 ```
-The backend initializes the PostgreSQL database (`smres`) and seeds realistic demo data automatically.
 - API Documentation (Swagger UI): [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 - Health Check: [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health)
 
-### 3. Frontend Setup
-```bash
+#### 2. Frontend Setup
+```powershell
 cd frontend
 npm install
 npm run dev
 ```
+- Live Web Application: [http://127.0.0.1:5173/](http://127.0.0.1:5173/)
+
 Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ---

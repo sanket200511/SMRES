@@ -6,19 +6,17 @@ from backend.app.database import Base, get_db
 from backend.app.seed_data import seed_database
 from backend.app.main import app
 
-# Support PostgreSQL when configured/available, otherwise fallback to SQLite
-TEST_DB_URL = os.getenv("TEST_DATABASE_URL")
-if not TEST_DB_URL:
-    try:
-        import psycopg
-        TEST_DB_URL = "postgresql+psycopg://postgres@localhost:5433/smres_test"
-    except ImportError:
-        TEST_DB_URL = "sqlite:///smres_test.db"
+# PostgreSQL is mandatory for test execution
+TEST_DB_URL = os.getenv("TEST_DATABASE_URL", "postgresql+psycopg://postgres@localhost:5433/smres_test")
 
-test_engine = create_engine(
-    TEST_DB_URL,
-    connect_args={"check_same_thread": False} if "sqlite" in TEST_DB_URL else {}
-)
+if not TEST_DB_URL.startswith("postgresql"):
+    raise RuntimeError(
+        "PostgreSQL is mandatory for SMRES tests. SQLite fallback is strictly prohibited. "
+        "Please provide a valid PostgreSQL TEST_DATABASE_URL."
+    )
+
+test_engine = create_engine(TEST_DB_URL, pool_pre_ping=True)
+
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
 def override_get_db():

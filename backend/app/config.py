@@ -7,6 +7,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_POSTGRES_URL = "postgresql+psycopg://postgres@localhost:5433/smres"
 DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_POSTGRES_URL)
 
+if not DATABASE_URL or not DATABASE_URL.startswith("postgresql"):
+    raise RuntimeError(
+        "Invalid or missing DATABASE_URL. PostgreSQL is mandatory for SMRES. "
+        "Please configure DATABASE_URL in your environment (e.g. postgresql+psycopg://postgres@localhost:5433/smres). "
+        "SQLite fallback is strictly prohibited."
+    )
+
+
 
 # Priority engine weights
 WEIGHT_SAFETY = 8
