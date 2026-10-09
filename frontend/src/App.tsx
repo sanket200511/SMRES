@@ -296,6 +296,8 @@ export function App() {
               <>
                 <StatsOverview
                   stats={stats}
+                  tickets={tickets}
+                  currentUser={currentUser}
                   selectedFilter={metricCardFilter}
                   onSelectFilter={(key) => setMetricCardFilter(key)}
                 />

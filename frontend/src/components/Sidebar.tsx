@@ -104,36 +104,42 @@ export const Sidebar: React.FC<Props> = ({
           </div>
         </button>
 
-        <button
-          onClick={() => setCurrentView('recurring')}
-          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
-            currentView === 'recurring'
-              ? 'bg-blue-600 text-white shadow-sm'
-              : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-          }`}
-        >
-          <div className="flex items-center gap-2.5">
-            <RotateCcw className="w-4 h-4" />
-            <span>Recurring Issues</span>
-          </div>
-          <span className="text-[10px] bg-indigo-500/20 text-indigo-300 font-mono px-1.5 py-0.5 rounded">
-            Analysis
-          </span>
-        </button>
+        {/* Recurring Issues (Only for Facility Admins) */}
+        {isAdmin && (
+          <button
+            onClick={() => setCurrentView('recurring')}
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+              currentView === 'recurring'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <RotateCcw className="w-4 h-4" />
+              <span>Recurring Issues</span>
+            </div>
+            <span className="text-[10px] bg-indigo-500/20 text-indigo-300 font-mono px-1.5 py-0.5 rounded">
+              Analysis
+            </span>
+          </button>
+        )}
 
-        <button
-          onClick={() => setCurrentView('technicians')}
-          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
-            currentView === 'technicians'
-              ? 'bg-blue-600 text-white shadow-sm'
-              : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-          }`}
-        >
-          <div className="flex items-center gap-2.5">
-            <Users className="w-4 h-4" />
-            <span>Technician Roster</span>
-          </div>
-        </button>
+        {/* Technician Roster (For Admins and Technicians) */}
+        {(isAdmin || isTech) && (
+          <button
+            onClick={() => setCurrentView('technicians')}
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+              currentView === 'technicians'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Users className="w-4 h-4" />
+              <span>Technician Roster</span>
+            </div>
+          </button>
+        )}
 
         <button
           onClick={() => setCurrentView('guide')}
