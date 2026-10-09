@@ -68,8 +68,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include Routers
-app.include_router(tickets.router)
+# Include Routers with dual route support for /api/tickets and /api/requests
+app.include_router(tickets.router, prefix="/api/tickets", tags=["Tickets"])
+app.include_router(tickets.router, prefix="/api/requests", tags=["Requests"])
 app.include_router(technicians.router)
 app.include_router(users.router)
 app.include_router(stats.router)

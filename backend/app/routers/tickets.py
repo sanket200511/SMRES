@@ -15,13 +15,32 @@ from ..schemas import (
     TicketEscalateRequest,
     PriorityScoreBreakdown,
     DuplicateCheckResult,
+    TicketActivityResponse,
 )
-from ..services.priority_engine import calculate_priority_score
+from ..services.priority_engine import calculate_priority_score, map_affected_people_to_score
 from ..services.duplicate_detector import detect_duplicate
 from ..services.sla_service import calculate_sla_deadline, evaluate_ticket_sla_status
 from ..services.technician_service import recommend_best_technician, assign_technician_to_ticket
 
-router = APIRouter(prefix="/api/tickets", tags=["Tickets"])
+router = APIRouter()
+
+def resolve_caller_identity(
+    db: Session,
+    x_demo_user_id: Optional[str] = None,
+    x_user_id: Optional[str] = None,
+    x_user_role: Optional[str] = None,
+    x_user_name: Optional[str] = None,
+):
+    valid_demo_id = x_demo_user_id if isinstance(x_demo_user_id, str) and x_demo_user_id.strip() else None
+    valid_user_id = x_user_id if isinstance(x_user_id, str) and x_user_id.strip() else None
+    valid_role = x_user_role if isinstance(x_user_role, str) and x_user_role.strip() else None
+    valid_name = x_user_name if isinstance(x_user_name, str) and x_user_name.strip() else None
+
+    uid = valid_demo_id or valid_user_id or "admin-1"
+    user = db.query(User).filter(User.id == uid).first()
+    if user:
+        return user.id, user.role, user.name
+    return uid, valid_role or "admin", valid_name or "Marcus Vance"
 
 def format_ticket_response(ticket: MaintenanceRequest) -> TicketResponse:
     is_overdue, mins_left = evaluate_ticket_sla_status(ticket)
@@ -34,10 +53,15 @@ def format_ticket_response(ticket: MaintenanceRequest) -> TicketResponse:
 @router.post("/preview-priority", response_model=PriorityScoreBreakdown)
 def preview_priority(data: TicketCreate):
     """Calculates live priority score and explanation before submission."""
+    people_score = (
+        map_affected_people_to_score(data.affected_people_count)
+        if data.affected_people_count is not None
+        else data.affected_people_score
+    )
     return calculate_priority_score(
         safety_score=data.safety_score,
         operational_impact_score=data.operational_impact_score,
-        affected_people_score=data.affected_people_score,
+        affected_people_score=people_score,
         time_sensitivity_score=data.time_sensitivity_score,
         text_content=f"{data.title} {data.description}",
     )
@@ -63,14 +87,18 @@ def check_ticket_duplicate(data: TicketCreate, db: Session = Depends(get_db)):
 def create_ticket(
     data: TicketCreate,
     db: Session = Depends(get_db),
-    x_user_role: str = Header(default="employee"),
-    x_user_id: str = Header(default="emp-1"),
-    x_user_name: str = Header(default="Sarah Jenkins"),
+    x_user_role: Optional[str] = Header(default="employee"),
+    x_user_id: Optional[str] = Header(default="emp-1"),
+    x_user_name: Optional[str] = Header(default="Sarah Jenkins"),
+    x_demo_user_id: Optional[str] = Header(default=None),
 ):
     """
     Submits a new maintenance request with automated priority scoring,
     duplicate incident detection, SLA deadline calculation, and technician recommendation.
     """
+    caller_id, caller_role, caller_name = resolve_caller_identity(
+        db, x_demo_user_id, x_user_id, x_user_role, x_user_name
+    )
     now = utc_now()
     # Generate sequential unique ticket ID
     existing_ids = db.query(MaintenanceRequest.id).all()
@@ -85,12 +113,17 @@ def create_ticket(
                 pass
     ticket_id = f"REQ-{max_num + 1}"
 
-    # 1. Smart Priority Calculation
+    # 1. Smart Priority Calculation with affected people count mapping
+    people_score = (
+        map_affected_people_to_score(data.affected_people_count)
+        if data.affected_people_count is not None
+        else data.affected_people_score
+    )
     combined_text = f"{data.title} {data.description}"
     priority_res = calculate_priority_score(
         safety_score=data.safety_score,
         operational_impact_score=data.operational_impact_score,
-        affected_people_score=data.affected_people_score,
+        affected_people_score=people_score,
         time_sensitivity_score=data.time_sensitivity_score,
         text_content=combined_text,
     )
@@ -127,14 +160,14 @@ def create_ticket(
         floor=data.floor,
         room=data.room,
         equipment_id=data.equipment_id,
-        submitted_by_id=x_user_id or data.submitted_by_id,
-        submitted_by_name=x_user_name or data.submitted_by_name,
+        submitted_by_id=caller_id or data.submitted_by_id,
+        submitted_by_name=caller_name or data.submitted_by_name,
         status="Pending",
 
         # Priority
         safety_score=data.safety_score,
         operational_impact_score=data.operational_impact_score,
-        affected_people_score=data.affected_people_score,
+        affected_people_score=people_score,
         time_sensitivity_score=data.time_sensitivity_score,
         priority_score=priority_res.total_score,
         recommended_priority=priority_res.recommended_priority,
@@ -160,7 +193,6 @@ def create_ticket(
         created_at=now,
         updated_at=now,
     )
-    db.add(ticket)
 
     # Activity log
     activity_msg = f"Ticket created. Priority evaluated as {priority_res.recommended_priority} ({priority_res.total_score}/100)."
@@ -172,17 +204,22 @@ def create_ticket(
     activity = TicketActivity(
         ticket_id=ticket_id,
         action="CREATED",
-        actor_id=x_user_id or data.submitted_by_id,
-        actor_name=x_user_name or data.submitted_by_name,
-        actor_role=x_user_role,
+        actor_id=caller_id or data.submitted_by_id,
+        actor_name=caller_name or data.submitted_by_name,
+        actor_role=caller_role,
         notes=activity_msg,
         created_at=now,
     )
-    db.add(activity)
 
-    db.commit()
-    db.refresh(ticket)
-    return format_ticket_response(ticket)
+    try:
+        db.add(ticket)
+        db.add(activity)
+        db.commit()
+        db.refresh(ticket)
+        return format_ticket_response(ticket)
+    except Exception:
+        db.rollback()
+        raise
 
 @router.get("", response_model=List[TicketResponse])
 def list_tickets(
@@ -193,19 +230,23 @@ def list_tickets(
     building: Optional[str] = None,
     search: Optional[str] = None,
     submitted_by: Optional[str] = None,
-    x_user_role: str = Header(default="admin"),
-    x_user_id: str = Header(default="admin-1"),
+    x_user_role: Optional[str] = Header(default="admin"),
+    x_user_id: Optional[str] = Header(default="admin-1"),
+    x_demo_user_id: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
     """
     List tickets with search, filtering, and role-based views.
-    Employee view can be restricted to their own submitted tickets unless viewing as admin.
+    Employee view is restricted to their own submitted tickets unless viewing as admin.
     """
+    caller_id, caller_role, _ = resolve_caller_identity(
+        db, x_demo_user_id, x_user_id, x_user_role, None
+    )
     query = db.query(MaintenanceRequest)
 
     # Role enforcement: if employee role, show only their requests
-    if x_user_role.lower() == "employee":
-        query = query.filter(MaintenanceRequest.submitted_by_id == x_user_id)
+    if caller_role.lower() == "employee":
+        query = query.filter(MaintenanceRequest.submitted_by_id == caller_id)
     elif submitted_by:
         query = query.filter(MaintenanceRequest.submitted_by_id == submitted_by)
 
@@ -245,11 +286,15 @@ def update_ticket_status(
     ticket_id: str,
     payload: TicketStatusUpdate,
     db: Session = Depends(get_db),
-    x_user_role: str = Header(default="admin"),
-    x_user_id: str = Header(default="admin-1"),
-    x_user_name: str = Header(default="Marcus Vance"),
+    x_user_role: Optional[str] = Header(default="admin"),
+    x_user_id: Optional[str] = Header(default="admin-1"),
+    x_user_name: Optional[str] = Header(default="Marcus Vance"),
+    x_demo_user_id: Optional[str] = Header(default=None),
 ):
     """Update ticket lifecycle status (Pending -> In Progress -> Resolved)."""
+    caller_id, caller_role, caller_name = resolve_caller_identity(
+        db, x_demo_user_id, x_user_id, x_user_role, x_user_name
+    )
     ticket = db.query(MaintenanceRequest).filter(MaintenanceRequest.id == ticket_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="Maintenance ticket not found.")
@@ -259,7 +304,7 @@ def update_ticket_status(
         raise HTTPException(status_code=400, detail=f"Invalid status. Choose from {valid_statuses}")
 
     # Role check: only admins/facility managers can resolve or set in progress
-    if x_user_role.lower() == "employee" and payload.status in ["In Progress", "Resolved"]:
+    if caller_role.lower() == "employee" and payload.status in ["In Progress", "Resolved"]:
         raise HTTPException(status_code=403, detail="Employee role is not authorized to transition status to In Progress or Resolved.")
 
     old_status = ticket.status
@@ -282,9 +327,9 @@ def update_ticket_status(
     activity = TicketActivity(
         ticket_id=ticket.id,
         action=f"STATUS_CHANGED_{payload.status.upper()}",
-        actor_id=x_user_id,
-        actor_name=x_user_name,
-        actor_role=x_user_role,
+        actor_id=caller_id,
+        actor_name=caller_name,
+        actor_role=caller_role,
         notes=f"Status transitioned from '{old_status}' to '{payload.status}'. Notes: {payload.resolution_notes or payload.notes or 'None'}",
         created_at=now,
     )
@@ -298,12 +343,16 @@ def assign_technician(
     ticket_id: str,
     payload: TicketAssignTech,
     db: Session = Depends(get_db),
-    x_user_role: str = Header(default="admin"),
-    x_user_id: str = Header(default="admin-1"),
-    x_user_name: str = Header(default="Marcus Vance"),
+    x_user_role: Optional[str] = Header(default="admin"),
+    x_user_id: Optional[str] = Header(default="admin-1"),
+    x_user_name: Optional[str] = Header(default="Marcus Vance"),
+    x_demo_user_id: Optional[str] = Header(default=None),
 ):
     """Assigns technician to ticket with workload management."""
-    if x_user_role.lower() == "employee":
+    caller_id, caller_role, caller_name = resolve_caller_identity(
+        db, x_demo_user_id, x_user_id, x_user_role, x_user_name
+    )
+    if caller_role.lower() == "employee":
         raise HTTPException(status_code=403, detail="Employees cannot assign technicians.")
 
     ticket = db.query(MaintenanceRequest).filter(MaintenanceRequest.id == ticket_id).first()
@@ -315,9 +364,9 @@ def assign_technician(
             db=db,
             ticket=ticket,
             technician_id=payload.technician_id,
-            actor_id=x_user_id,
-            actor_name=x_user_name,
-            actor_role=x_user_role,
+            actor_id=caller_id,
+            actor_name=caller_name,
+            actor_role=caller_role,
         )
         return format_ticket_response(updated)
     except ValueError as e:
@@ -328,12 +377,16 @@ def override_ticket_priority(
     ticket_id: str,
     payload: TicketPriorityOverride,
     db: Session = Depends(get_db),
-    x_user_role: str = Header(default="admin"),
-    x_user_id: str = Header(default="admin-1"),
-    x_user_name: str = Header(default="Marcus Vance"),
+    x_user_role: Optional[str] = Header(default="admin"),
+    x_user_id: Optional[str] = Header(default="admin-1"),
+    x_user_name: Optional[str] = Header(default="Marcus Vance"),
+    x_demo_user_id: Optional[str] = Header(default=None),
 ):
     """Admin overrides priority recommendation with justification."""
-    if x_user_role.lower() == "employee":
+    caller_id, caller_role, caller_name = resolve_caller_identity(
+        db, x_demo_user_id, x_user_id, x_user_role, x_user_name
+    )
+    if caller_role.lower() == "employee":
         raise HTTPException(status_code=403, detail="Employees cannot override priority.")
 
     ticket = db.query(MaintenanceRequest).filter(MaintenanceRequest.id == ticket_id).first()
@@ -348,7 +401,7 @@ def override_ticket_priority(
     prev_effective = ticket.effective_priority
     ticket.priority_override = payload.priority
     ticket.priority_override_reason = payload.reason
-    ticket.priority_override_by = x_user_name
+    ticket.priority_override_by = caller_name
     ticket.effective_priority = payload.priority
     ticket.updated_at = now
 
@@ -360,9 +413,9 @@ def override_ticket_priority(
     activity = TicketActivity(
         ticket_id=ticket.id,
         action="PRIORITY_OVERRIDDEN",
-        actor_id=x_user_id,
-        actor_name=x_user_name,
-        actor_role=x_user_role,
+        actor_id=caller_id,
+        actor_name=caller_name,
+        actor_role=caller_role,
         notes=f"Priority manually overridden from '{prev_effective}' to '{payload.priority}'. Reason: {payload.reason}",
         created_at=now,
     )
@@ -376,11 +429,15 @@ def escalate_ticket(
     ticket_id: str,
     payload: TicketEscalateRequest,
     db: Session = Depends(get_db),
-    x_user_role: str = Header(default="admin"),
-    x_user_id: str = Header(default="admin-1"),
-    x_user_name: str = Header(default="Marcus Vance"),
+    x_user_role: Optional[str] = Header(default="admin"),
+    x_user_id: Optional[str] = Header(default="admin-1"),
+    x_user_name: Optional[str] = Header(default="Marcus Vance"),
+    x_demo_user_id: Optional[str] = Header(default=None),
 ):
     """Triggers manual escalation for unresolved ticket."""
+    caller_id, caller_role, caller_name = resolve_caller_identity(
+        db, x_demo_user_id, x_user_id, x_user_role, x_user_name
+    )
     ticket = db.query(MaintenanceRequest).filter(MaintenanceRequest.id == ticket_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found.")
@@ -399,10 +456,10 @@ def escalate_ticket(
     activity = TicketActivity(
         ticket_id=ticket.id,
         action="ESCALATED_MANUAL",
-        actor_id=x_user_id,
-        actor_name=x_user_name,
-        actor_role=x_user_role,
-        notes=f"Manual escalation (Level {payload.level}) triggered by {x_user_name}. Reason: {payload.reason}",
+        actor_id=caller_id,
+        actor_name=caller_name,
+        actor_role=caller_role,
+        notes=f"Manual escalation (Level {payload.level}) triggered by {caller_name}. Reason: {payload.reason}",
         created_at=now,
     )
     db.add(activity)
@@ -415,11 +472,15 @@ def link_ticket_as_duplicate(
     ticket_id: str,
     target_ticket_id: str,
     db: Session = Depends(get_db),
-    x_user_role: str = Header(default="admin"),
-    x_user_id: str = Header(default="admin-1"),
-    x_user_name: str = Header(default="Marcus Vance"),
+    x_user_role: Optional[str] = Header(default="admin"),
+    x_user_id: Optional[str] = Header(default="admin-1"),
+    x_user_name: Optional[str] = Header(default="Marcus Vance"),
+    x_demo_user_id: Optional[str] = Header(default=None),
 ):
     """Links ticket to an existing master incident."""
+    caller_id, caller_role, caller_name = resolve_caller_identity(
+        db, x_demo_user_id, x_user_id, x_user_role, x_user_name
+    )
     ticket = db.query(MaintenanceRequest).filter(MaintenanceRequest.id == ticket_id).first()
     target = db.query(MaintenanceRequest).filter(MaintenanceRequest.id == target_ticket_id).first()
     if not ticket or not target:
@@ -428,15 +489,15 @@ def link_ticket_as_duplicate(
     now = utc_now()
     ticket.is_potential_duplicate = True
     ticket.duplicate_of_id = target.id
-    ticket.duplicate_reason = f"Explicitly linked to incident {target.id} by {x_user_name}."
+    ticket.duplicate_reason = f"Explicitly linked to incident {target.id} by {caller_name}."
     ticket.updated_at = now
 
     activity = TicketActivity(
         ticket_id=ticket.id,
         action="LINKED_DUPLICATE",
-        actor_id=x_user_id,
-        actor_name=x_user_name,
-        actor_role=x_user_role,
+        actor_id=caller_id,
+        actor_name=caller_name,
+        actor_role=caller_role,
         notes=f"Linked as duplicate/related ticket to master ticket {target.id} ('{target.title}').",
         created_at=now,
     )
@@ -444,3 +505,45 @@ def link_ticket_as_duplicate(
     db.commit()
     db.refresh(ticket)
     return format_ticket_response(ticket)
+
+@router.get("/{ticket_id}/history", response_model=List[TicketActivityResponse])
+def get_ticket_history(ticket_id: str, db: Session = Depends(get_db)):
+    """Retrieves full chronological activity history for a request."""
+    ticket = db.query(MaintenanceRequest).filter(MaintenanceRequest.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Maintenance ticket not found.")
+    return [TicketActivityResponse.model_validate(act) for act in ticket.activities]
+
+@router.patch("/{ticket_id}/assign", response_model=TicketResponse)
+def assign_technician_patch(
+    ticket_id: str,
+    payload: TicketAssignTech,
+    db: Session = Depends(get_db),
+    x_user_role: Optional[str] = Header(default="admin"),
+    x_user_id: Optional[str] = Header(default="admin-1"),
+    x_user_name: Optional[str] = Header(default="Marcus Vance"),
+    x_demo_user_id: Optional[str] = Header(default=None),
+):
+    """PATCH endpoint for assigning a technician."""
+    caller_id, caller_role, caller_name = resolve_caller_identity(
+        db, x_demo_user_id, x_user_id, x_user_role, x_user_name
+    )
+    if caller_role.lower() == "employee":
+        raise HTTPException(status_code=403, detail="Employees cannot assign technicians.")
+
+    ticket = db.query(MaintenanceRequest).filter(MaintenanceRequest.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found.")
+
+    try:
+        updated = assign_technician_to_ticket(
+            db=db,
+            ticket=ticket,
+            technician_id=payload.technician_id,
+            actor_id=caller_id,
+            actor_name=caller_name,
+            actor_role=caller_role,
+        )
+        return format_ticket_response(updated)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
