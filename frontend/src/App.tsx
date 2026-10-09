@@ -61,7 +61,16 @@ export function App() {
           api.getUsers(),
           api.getTechnicians(),
         ]);
-        setAllUsers(usersData);
+
+        const formattedTechUsers: User[] = techsData.map((t) => ({
+          id: t.id,
+          name: t.name,
+          email: t.email,
+          role: 'technician',
+          department: `${t.skills.split(',')[0]} Technician`,
+        }));
+
+        setAllUsers([...usersData, ...formattedTechUsers]);
         setTechnicians(techsData);
         // Default to Marcus Vance
         const marcus = usersData.find((u) => u.id === 'admin-1');
@@ -102,6 +111,15 @@ export function App() {
       let finalTickets = ticketsData;
       if (metricCardFilter === 'overdue') {
         finalTickets = finalTickets.filter((t) => t.is_overdue);
+      }
+
+      // If logged in as a field technician, show tickets assigned to them
+      if (currentUser.role === 'technician') {
+        finalTickets = finalTickets.filter(
+          (t) =>
+            t.assigned_technician_id === currentUser.id ||
+            t.assigned_technician_name === currentUser.name
+        );
       }
 
       setTickets(finalTickets);
