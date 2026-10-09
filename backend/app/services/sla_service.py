@@ -1,11 +1,11 @@
 from datetime import datetime, timezone, timedelta
 from typing import List, Tuple, Optional
 from sqlalchemy.orm import Session
-from ..config import SLA_HOURS
+from ..config import get_configured_sla_hours
 from ..models import MaintenanceRequest, TicketActivity, utc_now
 
 def get_sla_hours_for_priority(priority: str) -> float:
-    return SLA_HOURS.get(priority, 24.0)
+    return get_configured_sla_hours(priority)
 
 def calculate_sla_deadline(created_at: datetime, priority: str) -> Tuple[float, datetime]:
     hours = get_sla_hours_for_priority(priority)

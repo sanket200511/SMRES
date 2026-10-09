@@ -40,6 +40,30 @@ def check_emergency_keywords(text: str) -> Optional[str]:
     return None
 
 
+def map_affected_people_to_score(people_count: int) -> int:
+    """
+    Documented mapping from actual count of affected people to 0-5 score:
+    - <= 0 people: 0 (Isolated asset / no direct occupant impact)
+    - 1 to 5 people: 1 (Single workstation or private office)
+    - 6 to 20 people: 2 (Team room or shared zone)
+    - 21 to 50 people: 3 (Department wing)
+    - 51 to 200 people: 4 (Entire floor or large common facility)
+    - > 200 people: 5 (Building-wide or campus-wide operational impact)
+    """
+    if people_count <= 0:
+        return 0
+    elif people_count <= 5:
+        return 1
+    elif people_count <= 20:
+        return 2
+    elif people_count <= 50:
+        return 3
+    elif people_count <= 200:
+        return 4
+    else:
+        return 5
+
+
 def calculate_priority_score(
     safety_score: int,
     operational_impact_score: int,
